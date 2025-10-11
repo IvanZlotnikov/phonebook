@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::content})}">
+
+<head>
+  <meta charset="UTF-8">
+  <title th:text="${contact.id != null} ? 'Редактирование контакта' : 'Новый контакт'">
+    Новый контакт
+  </title>
+  <style>
+    .phone-container {
+      margin-bottom: 10px;
+    }
+
+    .btn-remove-phone {
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+    }
+
+    .required-field::after {
+      content: "*";
+      color: red;
+      margin-left: 3px;
+    }
+  </style>
+</head>
+
+<body>
+<th:block th:fragment="content">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+      <i class="fas" th:classappend="${contact.id != null} ? 'fa-edit' : 'fa-plus'"></i>
+      <span th:text="${contact.id != null} ? 'Редактирование контакта' : 'Новый контакт'"></span>
+    </h2>
+    <a th:href="@{/contacts}" class="btn btn-secondary">
+      <i class="fas fa-arrow-left me-1"></i>Назад
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <!-- Обновляем action формы для поддержки редактирования -->
+      <form th:action="@{/contacts/save}" th:object="${contact}" method="post">
+        <!--        CSRF токен-->
+        <!--        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>-->
+        <input type="hidden" th:field="*{id}"/>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label class="form-label required-field">ФИО</label>
+            <input type="text" class="form-control" th:field="*{fullName}"
+                   th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${#fields.hasErrors('fullName')}">
+              <span th:errors="*{fullName}"></span>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label required-field">Должность</label>
+            <input type="text" class="form-control" th:field="*{position}"
+                   th:classappend="${#fields.hasErrors('position')} ? 'is-invalid'">
+            <div class="invalid-feedback" th:if="${#fields.hasErrors('position')}">
+              <span th:errors="*{position}"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label class="form-label">Подразделение</label>
+            <select class="form-select" th:field="*{departmentId}">
+              <option value="">-- Выберите подразделение --</option>
+              <option th:each="dept : ${departments}"
+                      th:value="${dept.id}"
+                      th:text="${dept.name}"
+                      th:selected="${dept.id == contact.departmentId}">
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label class="form-label">Служебные телефоны</label>
+            <div id="workPhonesContainer" class="phone-container">
+              <div th:each="phone : ${contact.workPhones}">
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control"
+                         name="workPhones" th:value="${phone}" placeholder="+7 (XXX) XXX-XX-XX">
+                  <button type="button" class="btn btn-outline-danger btn-remove-phone"
+                          onclick="removePhone(this, 'workPhones')">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="addPhone('workPhones')">
+              <i class="fas fa-plus me-1"></i>Добавить номер
+            </button>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Служебные мобильные</label>
+            <div id="workMobilePhonesContainer" class="phone-container">
+              <div th:each="phone : ${contact.workMobilePhones}">
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control"
+                         name="workMobilePhones" th:value="${phone}"
+                         placeholder="+7 (XXX) XXX-XX-XX">
+                  <button type="button" class="btn btn-outline-danger btn-remove-phone"
+                          onclick="removePhone(this, 'workMobilePhones')">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="addPhone('workMobilePhones')">
+              <i class="fas fa-plus me-1"></i>Добавить номер
+            </button>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">Личные телефоны</label>
+            <div id="personalPhonesContainer" class="phone-container">
+              <div th:each="phone : ${contact.personalPhones}">
+                <div class="input-group mb-2">
+                  <input type="text" class="form-control"
+                         name="personalPhones" th:value="${phone}"
+                         placeholder="+7 (XXX) XXX-XX-XX">
+                  <button type="button" class="btn btn-outline-danger btn-remove-phone"
+                          onclick="removePhone(this, 'personalPhones')">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="addPhone('personalPhones')">
+              <i class="fas fa-plus me-1"></i>Добавить номер
+            </button>
+          </div>
+        </div>
+
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>
+            <span th:text="${contact.id != null} ? 'Обновить' : 'Сохранить'"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Функция для добавления поля телефона
+    function addPhone(fieldName) {
+      const container = document.getElementById(fieldName + 'Container');
+      const newInputGroup = document.createElement('div');
+      newInputGroup.className = 'input-group mb-2';
+      newInputGroup.innerHTML = `
+            <input type="text" class="form-control" name="${fieldName}"
+             placeholder="+7 (XXX) XXX-XX-XX" required>
+            <button type="button" class="btn btn-outline-danger btn-remove-phone"
+                    onclick="removePhone(this)">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+      container.appendChild(newInputGroup);
+    }
+
+    // Функция для удаления поля телефона
+    function removePhone(button, fieldName) {
+      const inputGroup = button.closest('.input-group');
+      inputGroup.remove();
+    }
+
+    // Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function () {
+      // Добавляем по одному полю для каждого типа телефона, если их нет
+      ['workPhones', 'workMobilePhones', 'personalPhones'].forEach(function (fieldName) {
+        const container = document.getElementById(fieldName + 'Container');
+        if (container.querySelectorAll('.input-group').length === 0) {
+          addPhone(fieldName);
+        }
+      });
+    });
+  </script>
+</th:block>
+</body>
+</html>

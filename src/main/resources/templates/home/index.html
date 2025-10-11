@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{fragments/layout :: layout(~{::title}, ~{::content})}"
+      xmlns:sec="http://www.w3.org/1999/xhtml">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Главная - Телефонный справочник</title>
+</head>
+
+
+<body>
+<th:block th:fragment="content">
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="jumbotron bg-light p-5 rounded">
+        <h1 class="display-4">📞 Телефонный справочник</h1>
+        <p class="lead">Управление контактами сотрудников компании</p>
+        <hr class="my-4">
+        <p>Система позволяет управлять контактами, подразделениями и обеспечивает быстрый поиск информации.</p>
+        <a class="btn btn-primary btn-lg" th:href="@{/contacts}" role="button">
+          Перейти к контактам
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body text-center">
+          <h2><i class="fas fa-users text-primary"></i></h2>
+          <h3 th:text="${totalContacts}">0</h3>
+          <p class="text-muted">Всего контактов</p>
+          <a th:href="@{/contacts}" class="btn btn-outline-primary">Просмотреть</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-body text-center">
+          <h2><i class="fas fa-sitemap text-success"></i></h2>
+          <h3 th:text="${totalDepartments}">0</h3>
+          <p class="text-muted">Подразделений</p>
+          <a th:href="@{/contacts}" class="btn btn-outline-success">Просмотреть</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h5>Быстрые действия</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2 d-md-flex">
+            <a th:href="@{/contacts/new}" class="btn btn-success me-2"
+               sec:authorize="hasRole('ADMIN')">
+              <i class="fas fa-plus me-1"></i>Добавить контакт
+            </a>
+            <a th:href="@{/contacts}" class="btn btn-primary">
+              <i class="fas fa-list me-1"></i>Все контакты
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</th:block>
+</body>
+</html>

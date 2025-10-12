@@ -135,7 +135,7 @@ public class ContactController {
             .toList();
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deleteContact(@PathVariable Long id,
         RedirectAttributes redirectAttributes) {
         try {
@@ -150,7 +150,7 @@ public class ContactController {
     }
 
     @PostMapping("/delete")
-    public String deleteMultipleContacts(@RequestParam("contactIds") List<Long> contactIds,
+    public String deleteMultipleContacts(@RequestParam(value = "contactIds",required = false) List<Long> contactIds,
         RedirectAttributes redirectAttributes) {
         try {
             if (contactIds == null || contactIds.isEmpty()) {

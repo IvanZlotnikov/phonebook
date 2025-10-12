@@ -1,238 +1,262 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
-      th:replace="~{fragments/layout :: layout(~{::title}, ~{::content})}">
+      lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Контакты - Телефонный справочник</title>
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
-        rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-        rel="stylesheet">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <style>
-    .navbar-brand {
-      font-weight: bold;
-    }
+  <!-- Font Awesome CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
-    .table-hover tbody tr:hover {
-      background-color: #f5f5f5;
-    }
-
-    .hierarchy {
-      margin-left: 20px;
-    }
-
-    .phone-list {
-      list-style: none;
-      padding-left: 0;
-    }
-
-    .phone-list li {
-      margin-bottom: 5px;
-    }
-
-    .table input[type="checkbox"] {
-      transform: scale(1.2);
-    }
-
-    #deleteSelectedBtn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .table tbody tr.selected {
-      background-color: rgba(220, 53, 69, 0.1) !important;
-    }
-
-    #selectedCount {
-      font-weight: 500;
-    }
-  </style>
+  <!-- Наш кастомный CSS -->
+  <link th:href="@{/css/style.css}" rel="stylesheet">
 </head>
 <body>
+<!-- Навигация -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container">
+    <a class="navbar-brand" th:href="@{/}">
+      <i class="fas fa-phone-alt me-2"></i>Телефонный справочник
+    </a>
 
-<th:block th:fragment="content">
-
-  <div class="container mt-4">
-
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2><i class="fas fa-users me-2"></i>Список контактов</h2>
-      <a th:href="@{/contacts/new}" class="btn btn-success" sec:authorize="hasRole('ADMIN')">
-        <i class="fas fa-plus me-1"></i>Добавить контакт
-      </a>
+    <div class="navbar-nav ms-auto">
+        <span class="navbar-text me-3" sec:authorize="isAuthenticated()">
+          Вы вошли как: <span sec:authentication="name"></span>
+        </span>
+      <form th:action="@{/logout}" method="post" sec:authorize="isAuthenticated()">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <button class="btn btn-outline-light btn-sm" type="submit">Выйти</button>
+      </form>
+      <a th:href="@{/login}" class="btn btn-outline-light btn-sm"
+         sec:authorize="!isAuthenticated()">Войти</a>
     </div>
+  </div>
+</nav>
 
-    <!-- Форма поиска и фильтрации -->
-    <div class="card mb-4">
-      <div class="card-body">
-        <form th:action="@{/contacts}" method="get" class="row g-3">
-          <div class="col-md-5">
-            <input type="text" name="search" class="form-control" placeholder="Поиск по ФИО..."
-                   th:value="${param.search}">
-          </div>
-          <div class="col-md-5">
-            <select name="dept" class="form-select" th:if="${departments}">
-              <option value="">Все подразделения</option>
-              <option th:each="dept : ${departments}"
-                      th:value="${dept.id}"
-                      th:text="${dept.name}"
-                      th:selected="${param.dept == dept.id}">
-              </option>
-            </select>
-          </div>
-          <div class="col-md-2">
-            <button type="submit" class="btn btn-primary w-100">Найти</button>
-          </div>
-        </form>
-      </div>
-    </div>
+<!-- Основной контент -->
+<div class="container mt-4">
+  <!-- Сообщения -->
+  <div th:replace="~{fragments/messages :: messages}"></div>
 
-    <!--  Форма массового удаления-->
-    <form th:action="@{/contacts/delete}" method="post" id="massDeleteForm"
-          sec:authorize="hasRole('ADMIN')">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <button type="submit" class="btn btn-danger" id="deleteSelectedBtn" disabled>
-            <i class="fas fa-trash me-1"></i>Удалить выбранные
-          </button>
-          <span id="selectedCount" class="ms-2 text-muted">0 выбрано</span>
-        </div>
-      </div>
-    </form>
-
-    <!-- Таблица контактов -->
-    <div class="card">
-      <div class="card-body">
-        <div th:if="${#lists.isEmpty(contacts)}" class="text-center py-4">
-          <i class="fas fa-search fa-3x text-muted mb-3"></i>
-          <h5>Контакты не найдены</h5>
-          <p class="text-muted">Попробуйте изменить параметры поиска</p>
-        </div>
-
-        <div th:unless="${#lists.isEmpty(contacts)}" class="table-responsive">
-          <table class="table table-hover table-striped">
-            <thead>
-            <tr>
-              <th th:width="50" sec:authorize="hasRole('ADMIN')">
-                <input type="checkbox" id="selectAll">
-              </th>
-              <th>ФИО</th>
-              <th>Должность</th>
-              <th>Подразделение</th>
-              <th>Телефоны</th>
-              <th sec:authorize="hasRole('ADMIN')">Действия</th>
-            </tr>
-            </thead>
-            <tbody>
-            <tr th:each="contact : ${contacts}">
-              <td sec:authorize="hasRole('ADMIN')">
-                <input type="checkbox" name="contactIds" th:value="${contact.id}"
-                       class="contact-checkbox">
-              </td>
-              <td th:text="${contact.fullName}"></td>
-              <td th:text="${contact.position}"></td>
-              <td>
-              <span th:if="${contact.departmentId != null}"
-                    th:text="${departmentMap[contact.departmentId]}"></span>
-                <span th:unless="${contact.departmentId != null}"
-                      class="text-muted">Не указано</span>
-              </td>
-              <td>
-                <div th:if="${not #lists.isEmpty(contact.workPhones)}">
-                  <small class="text-muted">Служебные:</small>
-                  <ul class="phone-list">
-                    <li th:each="phone : ${contact.workPhones}" th:text="${phone}"></li>
-                  </ul>
-                </div>
-                <div th:if="${not #lists.isEmpty(contact.workMobilePhones)}">
-                  <small class="text-muted">Мобильные:</small>
-                  <ul class="phone-list">
-                    <li th:each="phone : ${contact.workMobilePhones}" th:text="${phone}"></li>
-                  </ul>
-                </div>
-                <div th:if="${not #lists.isEmpty(contact.personalPhones)}">
-                  <small class="text-muted">Личные:</small>
-                  <ul class="phone-list">
-                    <li th:each="phone : ${contact.personalPhones}" th:text="${phone}"></li>
-                  </ul>
-                </div>
-              </td>
-              <td sec:authorize="hasRole('ADMIN')">
-                <a th:href="@{/contacts/edit/{id}(id=${contact.id})}"
-                   class="btn btn-sm btn-outline-primary me-1">
-                  <i class="fas fa-edit"></i>
-                </a>
-                <a th:href="@{/contacts/delete/{id}(id=${contact.id})}"
-                   class="btn btn-sm btn-outline-danger"
-                   onclick="return confirm('Удалить контакт?')">
-                  <i class="fas fa-trash"></i>
-                </a>
-              </td>
-            </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-    <!--    Конец таблицы контактов-->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-users me-2"></i>Список контактов</h2>
+    <a th:href="@{/contacts/new}" class="btn btn-success" sec:authorize="hasRole('ADMIN')">
+      <i class="fas fa-plus me-1"></i>Добавить контакт
+    </a>
   </div>
 
-  <script
-      src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Форма поиска -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <form th:action="@{/contacts}" method="get" class="row g-3">
+        <div class="col-md-5">
+          <input type="text" name="search" class="form-control" placeholder="Поиск по ФИО..."
+                 th:value="${param.search}">
+        </div>
+        <div class="col-md-5">
+          <select name="dept" class="form-select" th:if="${departments}">
+            <option value="">Все подразделения</option>
+            <option th:each="dept : ${departments}"
+                    th:value="${dept.id}"
+                    th:text="${dept.name}"
+                    th:selected="${param.dept == dept.id}">
+            </option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fas fa-search me-1"></i>Найти
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-  <!--JAVASCRIPT для управления чекбоксами-->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const selectAll = document.getElementById('selectAll');
-      const checkboxes = document.querySelectorAll('.contact-checkbox');
-      const deleteBtn = document.getElementById('deleteSelectedBtn');
-      const selectedCount = document.getElementById('selectedCount');
-      const form = document.getElementById('massDeleteForm');
+  <!-- Панель массового удаления -->
+  <div class="d-flex justify-content-between align-items-center mb-3" sec:authorize="hasRole('ADMIN')">
+    <div>
+      <form th:action="@{/contacts/delete}" method="post" id="massDeleteForm">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
-      // Выделить все / снять выделение
+        <!-- Скрытые поля для выбранных ID -->
+        <div id="selectedContactsInputs"></div>
+
+        <button type="submit" class="btn btn-danger" id="deleteSelectedBtn" disabled>
+          <i class="fas fa-trash me-1"></i>Удалить выбранные
+        </button>
+      </form>
+      <span id="selectedCount" class="ms-2 text-muted">0 выбрано</span>
+    </div>
+  </div>
+
+  <!-- Таблица контактов -->
+  <div class="card">
+    <div class="card-body">
+      <div th:if="${#lists.isEmpty(contacts)}" class="text-center py-4">
+        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+        <h5>Контакты не найдены</h5>
+        <p class="text-muted">Попробуйте изменить параметры поиска</p>
+      </div>
+
+      <div th:unless="${#lists.isEmpty(contacts)}" class="table-responsive">
+        <table class="table table-hover table-striped">
+          <thead>
+          <tr>
+            <th width="50" sec:authorize="hasRole('ADMIN')">
+              <input type="checkbox" id="selectAll">
+            </th>
+            <th>ФИО</th>
+            <th>Должность</th>
+            <th>Подразделение</th>
+            <th>Телефоны</th>
+            <th sec:authorize="hasRole('ADMIN')">Действия</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="contact : ${contacts}">
+            <td sec:authorize="hasRole('ADMIN')">
+              <input type="checkbox" name="contactIds" th:value="${contact.id}" class="contact-checkbox">
+            </td>
+            <td th:text="${contact.fullName}"></td>
+            <td th:text="${contact.position}"></td>
+            <td>
+                <span th:if="${contact.departmentId != null}"
+                      th:text="${departmentMap[contact.departmentId]}"></span>
+              <span th:unless="${contact.departmentId != null}" class="text-muted">Не указано</span>
+            </td>
+            <td>
+              <div th:if="${not #lists.isEmpty(contact.workPhones)}">
+                <small class="text-muted">Служебные:</small>
+                <ul class="phone-list">
+                  <li th:each="phone : ${contact.workPhones}" th:text="${phone}"></li>
+                </ul>
+              </div>
+              <div th:if="${not #lists.isEmpty(contact.workMobilePhones)}">
+                <small class="text-muted">Мобильные:</small>
+                <ul class="phone-list">
+                  <li th:each="phone : ${contact.workMobilePhones}" th:text="${phone}"></li>
+                </ul>
+              </div>
+              <div th:if="${not #lists.isEmpty(contact.personalPhones)}">
+                <small class="text-muted">Личные:</small>
+                <ul class="phone-list">
+                  <li th:each="phone : ${contact.personalPhones}" th:text="${phone}"></li>
+                </ul>
+              </div>
+            </td>
+            <td sec:authorize="hasRole('ADMIN')">
+              <a th:href="@{/contacts/edit/{id}(id=${contact.id})}" class="btn btn-sm btn-outline-primary me-1">
+                <i class="fas fa-edit"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger" th:onclick="'deleteSingleContact(' + ${contact.id} + ')'">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  function deleteSingleContact(contactId) {
+    if (confirm('Удалить контакт?')) {
+      const form = document.createElement('form');
+      form.method = 'post';
+      form.action = '/contacts/delete/' + contactId;
+
+      const csrfToken = document.querySelector('input[name="_csrf"]').value;
+      const csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = '_csrf';
+      csrfInput.value = csrfToken;
+      form.appendChild(csrfInput);
+
+      document.body.appendChild(form);
+      form.submit();
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const selectAll = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.contact-checkbox');
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const selectedCount = document.getElementById('selectedCount');
+    const massDeleteForm = document.getElementById('massDeleteForm');
+    const selectedContactsInputs = document.getElementById('selectedContactsInputs');
+
+    // Функция для обновления скрытых полей с выбранными ID
+    function updateSelectedInputs() {
+      selectedContactsInputs.innerHTML = ''; // Очищаем предыдущие поля
+
+      const selectedIds = Array.from(checkboxes)
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+      // Добавляем скрытые поля для каждого выбранного ID
+      selectedIds.forEach(id => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'contactIds'; // Одинаковое имя для всех полей
+        input.value = id;
+        selectedContactsInputs.appendChild(input);
+      });
+    }
+
+    function updateSelection() {
+      const selected = document.querySelectorAll('.contact-checkbox:checked').length;
+      deleteBtn.disabled = selected === 0;
+      selectedCount.textContent = selected + ' выбрано';
+
+      // Обновляем скрытые поля
+      updateSelectedInputs();
+
       if (selectAll) {
-        selectAll.addEventListener('change', function () {
-          checkboxes.forEach(cb => cb.checked = this.checked);
-          updateSelection();
-        });
+        selectAll.checked = selected > 0 && selected === checkboxes.length;
       }
+    }
 
-      //   Обновление счетчика и состояния кнопки
-      function updateSelection() {
-        const selected = document.querySelectorAll('.contact-checkbox:checked').length;
-        if (deleteBtn) {
-          deleteBtn.disabled = selected === 0;
-        }
-        if (selectedCount) {
-          selectedCount.textContent = selected + ' выбрано';
-        }
-        if (selectAll) {
-          selectAll.checked = selected > 0 && selected < checkboxes.length;
-        }
-      }
+    if (selectAll) {
+      selectAll.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = this.checked);
+        updateSelection();
+      });
+    }
 
-      //   Слушаем изменения чекбоксов
-      checkboxes.forEach(cb => cb.addEventListener('change', updateSelection));
-
-      //   Подтверждение удаления
-      if (form) {
-        form.addEventListener('submit', function (e) {
-          const selected = document.querySelectorAll('.contact-checkbox:checked').length;
-          if (selected > 0 && !confirm(`Вы уверены, что хотите удалить ${selected} контактов?`)) {
-            e.preventDefault();
-          }
-        });
-      }
-
-      //   Инициализация
-      updateSelection();
+    checkboxes.forEach(cb => {
+      cb.addEventListener('change', updateSelection);
     });
-  </script>
 
-</th:block>
-<!--Закрытие th:block для layout-->
+    if (massDeleteForm) {
+      massDeleteForm.addEventListener('submit', function(e) {
+        const selectedIds = Array.from(checkboxes)
+        .filter(cb => cb.checked)
+        .map(cb => cb.value);
+
+        if (selectedIds.length === 0) {
+          e.preventDefault();
+          alert('Не выбраны контакты для удаления');
+          return;
+        }
+
+        if (!confirm(`Вы уверены, что хотите удалить ${selectedIds.length} контактов?`)) {
+          e.preventDefault();
+        }
+      });
+    }
+
+    updateSelection();
+  });
+</script>
 </body>
 </html>

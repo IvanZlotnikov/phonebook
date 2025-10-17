@@ -1,14 +1,13 @@
 package com.ivanzlotnikov.phone_book.phonebook.department.service;
 
+import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
-import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
-import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
+import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,9 +25,18 @@ public class DepartmentService {
     // Получить все подразделения
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
-        return departmentRepository.findAll().stream()
-            .map(DepartmentDTO::fromEntity)
+        return departmentRepository.findAllWithContactCount().stream()
+            .map(this::mapToDepartmentDTOWithCount)
             .toList();
+    }
+
+    private DepartmentDTO mapToDepartmentDTOWithCount(Object[] results) {
+        Department department = (Department) results[0];
+        Long contactCount = (Long) results[1];
+
+        DepartmentDTO dto = DepartmentDTO.fromEntity(department);
+        dto.setContactCount(contactCount.intValue());
+        return dto;
     }
 
     // Получить подразделение по ID
@@ -48,7 +56,6 @@ public class DepartmentService {
         } else {
             department = new Department();
         }
-
         department.setName(departmentDTO.getName().trim());
         if (departmentDTO.getParentDepartmentId() != null) {
             Department parent = departmentRepository.findById(
@@ -60,7 +67,6 @@ public class DepartmentService {
         } else {
             department.setParentDepartment(null);
         }
-
         Department savedDepartment = departmentRepository.save(department);
         log.info("Department {} saved successfully", savedDepartment.getId());
 
@@ -89,7 +95,11 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findRootDepartments() {
         return departmentRepository.findByParentDepartmentIsNull().stream()
-            .map(DepartmentDTO::fromEntity)
+            .map(dept -> {
+                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
+                dto.setContactCount((int) contactRepository.countByDepartmentId(dept.getId()));
+                return dto;
+            })
             .toList();
     }
 
@@ -109,17 +119,22 @@ public class DepartmentService {
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
 
         List<Department> allDepartments = new ArrayList<>();
-        addChildrenToHierarchy(department, allDepartments);
+        addChildrenToHierarchy(department, allDepartments, 10);
         return allDepartments;
     }
 
-
     // Рекурсивный метод для построения иерархии
-    private void addChildrenToHierarchy(Department parent, List<Department> hierarchy) {
+    private void addChildrenToHierarchy(Department parent, List<Department> hierarchy,
+        int maxDepth) {
+        if (maxDepth <= 0) {
+            log.warn("Max depth reached for department hierarchy starting from {}", parent.getId());
+            return;
+        }
+
         List<Department> children = departmentRepository.findByParentDepartment(parent);
         for (Department child : children) {
             hierarchy.add(child);
-            addChildrenToHierarchy(child, hierarchy);
+            addChildrenToHierarchy(child, hierarchy, maxDepth - 1);
         }
     }
 
@@ -128,17 +143,17 @@ public class DepartmentService {
     public List<DepartmentDTO> getDepartmentTree() {
         return departmentRepository.findByParentDepartmentIsNull()
             .stream()
-            .map(dept->buildDepartmentTree(dept,3))
+            .map(dept -> buildDepartmentTree(dept, 5))
             .toList();
     }
 
-    private DepartmentDTO buildDepartmentTree(Department department,int maxDepth) {
+    private DepartmentDTO buildDepartmentTree(Department department, int maxDepth) {
         DepartmentDTO dto = DepartmentDTO.fromEntity(department);
-
         if (maxDepth > 0) {
-            dto.setChildrenDepartments(department.getChildrenDepartments().stream()
-                .map(child->buildDepartmentTree(child, maxDepth-1))
-                .collect(Collectors.toList()));
+            List<Department> children = departmentRepository.findByParentDepartment(department);
+            dto.setChildrenDepartments(children.stream()
+                .map(child -> buildDepartmentTree(child, maxDepth - 1))
+                .toList());
         }
         return dto;
     }
@@ -147,13 +162,28 @@ public class DepartmentService {
     public List<DepartmentDTO> searchByName(String name) {
         return departmentRepository.findByNameContainingIgnoreCase(name.trim())
             .stream()
-            .map(DepartmentDTO::fromEntity)
+            .map(dept -> {
+                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
+                dto.setContactCount((int) contactRepository.countByDepartmentId(dept.getId()));
+                return dto;
+            })
             .toList();
     }
 
     @Transactional(readOnly = true)
     public boolean existsByName(String name) {
         return departmentRepository.existsByName(name.trim());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DepartmentDTO> findAllWithContactCount() {
+        return departmentRepository.findAll().stream()
+            .map(dept -> {
+                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
+                dto.setContactCount(0);
+                return dto;
+            })
+            .toList();
     }
 
     @Transactional(readOnly = true)
@@ -166,6 +196,21 @@ public class DepartmentService {
         return contactRepository.countByDepartmentId(departmentId);
     }
 
+    @Transactional(readOnly = true)
+    public List<DepartmentDTO> findAllForForms() {
+        return departmentRepository.findAll().stream()
+            .map(dept -> {
+                DepartmentDTO dto = new DepartmentDTO();
+                dto.setId(dept.getId());
+                dto.setName(dept.getName());
 
+                if (dept.getParentDepartment() != null) {
+                    dto.setParentDepartmentId(dept.getParentDepartment().getId());
+                    dto.setParentDepartmentName(dept.getParentDepartment().getName());
+                }
+                return dto;
+            })
+            .toList();
+    }
 }
 

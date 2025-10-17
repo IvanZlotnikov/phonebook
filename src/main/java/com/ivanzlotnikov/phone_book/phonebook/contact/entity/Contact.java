@@ -15,9 +15,11 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 @Table(name = "contacts")
@@ -46,7 +48,8 @@ public class Contact {
     @ElementCollection
     @CollectionTable(name = "contact_work_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
-    @Column(name = "phone_number",length = 20)
+    @Column(name = "phone_number", length = 20)
+    @BatchSize(size = 50)
     private List<String> workPhones = new ArrayList<>();
 
     // личные номера
@@ -54,27 +57,30 @@ public class Contact {
     @CollectionTable(name = "contact_personal_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
+    @BatchSize(size = 50)
     private List<String> personalPhones = new ArrayList<>();
-
 
     //Служебные мобильные номера
     @ElementCollection
     @CollectionTable(name = "contact_work_mobile_phones", joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
+    @BatchSize(size = 50)
     private List<String> workMobilePhones = new ArrayList<>();
 
-
-    public void addWorkPhone(String phone) {
-        this.workPhones.add(phone);
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (!(obj instanceof Contact)) {
+            return false;
+        }
+        Contact contact = (Contact) obj;
+        return Objects.equals(id, contact.id);
     }
 
-    public void addPersonalPhone(String phone) {
-        this.personalPhones.add(phone);
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
-
-    public void addWorkMobilePhone(String mobile) {
-        this.workMobilePhones.add(mobile);
-    }
-
-
 }

@@ -44,4 +44,7 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
     @Query("SELECT d FROM Department d where LOWER(d.name) LIKE LOWER(concat('%', :name,'%'))")
     List<Department> findByNameContainingIgnoreCase(@Param("name") String name);
+
+    @Query("SELECT d, COUNT(c) as contactCount FROM Department d LEFT JOIN Contact c ON c.department = d GROUP BY d")
+    List<Object[]> findAllWithContactCount();
 }

@@ -1,38 +1,22 @@
 package com.ivanzlotnikov.phone_book.phonebook.config;
 
-import javax.sql.DataSource;
+import com.ivanzlotnikov.phone_book.phonebook.auth.service.CustomUserDetailsService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Bean
-    @Profile("!test")
-    public UserDetailsService userDetailsService(DataSource dataSource) {
-        JdbcUserDetailsManager userDetailsManager = new JdbcUserDetailsManager(dataSource);
-
-        userDetailsManager.setUsersByUsernameQuery(
-            "SELECT username, password, enabled FROM users WHERE username = ?"
-        );
-        userDetailsManager.setAuthoritiesByUsernameQuery(
-            "SELECT username, authority FROM authorities WHERE username = ?"
-        );
-
-        return userDetailsManager;
-    }
-
+    private final CustomUserDetailsService userDetailsService;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -55,6 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/contacts","/contacts/**").authenticated()
                 .anyRequest().authenticated()
             )
+            .userDetailsService(userDetailsService)
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/login")

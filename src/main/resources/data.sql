@@ -11,18 +11,24 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Пользователи для входа
 INSERT INTO users (username, password, role, enabled)
-VALUES ('user', '$2a$10$YmT2fwPl5MmNPWlr2anoeumsP1SD9RWwdNqLxRwt/5NEEAIEziP3i','USER' ,true),
-       ('admin', '$2a$10$Q9RYENUTqzpOBwORlXjt0OzocNQUsJQsojWxGjX9KHyAIQ7KNDm62', 'ADMIN',true)
+VALUES ('user',
+        '$2a$10$YmT2fwPl5MmNPWlr2anoeumsP1SD9RWwdNqLxRwt/5NEEAIEziP3i',
+        'ROLE_USER' ,
+        true),
+       ('admin',
+        '$2a$10$Q9RYENUTqzpOBwORlXjt0OzocNQUsJQsojWxGjX9KHyAIQ7KNDm62',
+        'ROLE_ADMIN',
+        true)
 ON CONFLICT (username) DO NOTHING;
 
-
--- Роли пользователей
-INSERT INTO authorities (username, authority)
-VALUES ('user', 'ROLE_USER'),
-       ('admin', 'ROLE_ADMIN')
-ON CONFLICT (username, authority) DO NOTHING;
 --
---
+-- -- Роли пользователей
+-- INSERT INTO authorities (username, authority)
+-- VALUES ('user', 'ROLE_USER'),
+--        ('admin', 'ROLE_ADMIN')
+-- ON CONFLICT (username, authority) DO NOTHING;
+-- --
+-- --
 -- -- Тестовые контакты
 
 -- Контакты для Руководства

@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
@@ -34,7 +33,7 @@ public class Department {
     private Long id;
 
     @NotBlank(message = "Department name is mandatory")
-    @Column(nullable = false, unique = true,length = 100)
+    @Column(nullable = false, unique = true, length = 100)
     private String name;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -46,19 +45,7 @@ public class Department {
         orphanRemoval = true)
     List<Department> childrenDepartments = new ArrayList<>();
 
-    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY,cascade = {})
-    private List<Contact> contacts = new ArrayList<>();
-
-    //вспомогательные методы
-    public void addChildDepartment(Department child) {
-        childrenDepartments.add(child);
-        child.setParentDepartment(this);
-    }
-
-    public void removeChildDepartment(Department child) {
-        childrenDepartments.remove(child);
-        child.setParentDepartment(null);
-    }
-
+    @OneToMany(mappedBy = "department", fetch = FetchType.LAZY, cascade = {})
+    private List<Contact> contacts;
 
 }

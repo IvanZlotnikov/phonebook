@@ -24,7 +24,6 @@ public class DepartmentDTO {
         DepartmentDTO dto = new DepartmentDTO();
         dto.setId(department.getId());
         dto.setName(department.getName());
-        dto.setContactCount(department.getContacts() != null ? department.getContacts().size() : 0);
 
         if (department.getParentDepartment() != null) {
             dto.setParentDepartmentId(department.getParentDepartment().getId());

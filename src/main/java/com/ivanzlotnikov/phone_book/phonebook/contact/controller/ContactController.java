@@ -34,9 +34,9 @@ public class ContactController {
 
     @GetMapping
     public String listContacts(@RequestParam(value = "dept", required = false) Long departmentId,
-        @RequestParam(value = "search", required = false) String searchQuery,
-        Model model) {
-        log.info("Listing contacts, departmentdId: {}, searchQuery: {}", departmentId, searchQuery);
+                               @RequestParam(value = "search", required = false) String searchQuery,
+                               Model model) {
+        log.info("Listing contacts, departmentId: {}, searchQuery: {}", departmentId, searchQuery);
 
         List<ContactDTO> contacts;
         if (searchQuery != null && !searchQuery.trim().isEmpty()) {
@@ -48,11 +48,12 @@ public class ContactController {
         }
 
         //Создаем map для быстрого доступа к названиям подразделений
-        Map<Long, String> departmentMap = departmentService.findAll().stream()
+        List<DepartmentDTO> allDepartments = departmentService.findAll();
+        Map<Long, String> departmentMap = allDepartments.stream()
             .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName));
 
         model.addAttribute("contacts", contacts);
-        model.addAttribute("departments", departmentService.findAll());
+        model.addAttribute("departments", allDepartments);
         model.addAttribute("departmentMap", departmentMap);
         model.addAttribute("totalContacts", contactService.count());
 
@@ -62,7 +63,7 @@ public class ContactController {
     @GetMapping("/new")
     public String showContactForm(Model model) {
         model.addAttribute("contact", new ContactDTO());
-        model.addAttribute("departments", departmentService.findAll());
+        model.addAttribute("departments", departmentService.findAllForForms());
         return "contacts/form";
     }
 
@@ -72,7 +73,7 @@ public class ContactController {
             .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
 
         model.addAttribute("contact", contact);
-        model.addAttribute("departments", departmentService.findAll());
+        model.addAttribute("departments", departmentService.findAllForForms());
         return "contacts/form";
     }
 
@@ -88,15 +89,15 @@ public class ContactController {
     ) {
         if (bindingResult.hasErrors()) {
             log.warn("Validation errors: {}", bindingResult.getAllErrors());
-            model.addAttribute("departments", departmentService.findAll());
+            model.addAttribute("departments", departmentService.findAllForForms());
             return "contacts/form";
         }
 
         try {
-            // Фильтруем пустые телефоны
-            contactDTO.setWorkPhones(filterEmptyPhones(workPhones));
-            contactDTO.setWorkMobilePhones(filterEmptyPhones(workMobilePhones));
-            contactDTO.setPersonalPhones(filterEmptyPhones(personalPhones));
+            // Устанавливаем телефоны из параметров
+            contactDTO.setWorkPhones(workPhones != null ? workPhones : List.of());
+            contactDTO.setWorkMobilePhones(workMobilePhones != null ? workMobilePhones : List.of());
+            contactDTO.setPersonalPhones(personalPhones != null ? personalPhones : List.of());
 
             // Проверка дубликатов только для новых контактов
             if (contactDTO.getId() == null &&
@@ -104,8 +105,7 @@ public class ContactController {
                     contactDTO.getFullName(), contactDTO.getPosition())) {
                 bindingResult.rejectValue("fullName", "duplicate",
                     "Контакт с таким ФИО и должностью уже существует");
-                model.addAttribute("departments", departmentService.findAll());
-
+                model.addAttribute("departments", departmentService.findAllForForms());
                 return "contacts/form";
             }
 
@@ -119,30 +119,19 @@ public class ContactController {
         } catch (Exception e) {
             log.error("Error saving contact", e);
             model.addAttribute("errorMessage", "Ошибка при сохранении контакта: " + e.getMessage());
-            model.addAttribute("departments", departmentService.findAll());
+            model.addAttribute("departments", departmentService.findAllForForms());
             return "contacts/form";
         }
     }
 
-    private List<String> filterEmptyPhones(List<String> phones) {
-        if (phones == null) {
-            return List.of();
-        }
-
-        return phones.stream()
-            .filter(StringUtils::isNotBlank)
-            .map(String::trim)
-            .toList();
-    }
-
     @PostMapping("/delete/{id}")
     public String deleteContact(@PathVariable Long id,
-        RedirectAttributes redirectAttributes) {
+                                RedirectAttributes redirectAttributes) {
         try {
             contactService.deleteById(id);
             redirectAttributes.addFlashAttribute("successMessage", "Контакт успешно удален");
-        } catch (Exception e) {
-            log.error("Error deleting contact with id: {}", id, e);
+        } catch (EntityNotFoundException e) {
+            log.warn("Attempt to delete non-existing contact with id: {}", id, e);
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контакта: " + e.getMessage());
         }
@@ -150,7 +139,8 @@ public class ContactController {
     }
 
     @PostMapping("/delete")
-    public String deleteMultipleContacts(@RequestParam(value = "contactIds",required = false) List<Long> contactIds,
+    public String deleteMultipleContacts(
+        @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
         RedirectAttributes redirectAttributes) {
         try {
             if (contactIds == null || contactIds.isEmpty()) {

@@ -1,8 +1,8 @@
 package com.ivanzlotnikov.phone_book.phonebook.auth.service;
 
 import com.ivanzlotnikov.phone_book.phonebook.auth.entity.User;
-import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import com.ivanzlotnikov.phone_book.phonebook.auth.repository.UserRepository;
+import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -18,17 +18,14 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional
     public List<User> findAll() {
         return userRepository.findAll();
     }
 
-    @Transactional(readOnly = true)
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
     }
 
-    @Transactional(readOnly = true)
     public Optional<User> findByUsername(String name) {
         return userRepository.findByUsername(name);
     }
@@ -38,10 +35,17 @@ public class UserService {
             User existingUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-            if (!user.getPassword().equals(existingUser.getPassword())) {
-                user.setPassword(passwordEncoder.encode(user.getPassword()));
+            String rawPassword = user.getPassword();
+            if (rawPassword != null && !rawPassword.isEmpty() &&
+                passwordEncoder.matches(rawPassword, existingUser.getPassword())) {
+                // Пароль изменился - кодируем новый
+                user.setPassword(passwordEncoder.encode(rawPassword));
+            } else {
+                // Пароль не изменился - сохраняем старый
+                user.setPassword(existingUser.getPassword());
             }
         } else {
+            // Новый пользователь - всегда кодируем пароль
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         }
         return userRepository.save(user);

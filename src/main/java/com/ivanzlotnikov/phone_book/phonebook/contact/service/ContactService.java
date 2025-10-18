@@ -1,6 +1,7 @@
 package com.ivanzlotnikov.phone_book.phonebook.contact.service;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.entity.Contact;
 import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
@@ -42,37 +43,37 @@ public class ContactService {
             .map(ContactDTO::fromEntity);
     }
 
-    public ContactDTO save(ContactDTO contactDTO) {
+    public ContactDTO save(ContactFormDTO contactFormDTO) {
         Contact contact;
 
-        if (contactDTO.getId() != null) {
-            contact = contactRepository.findByIdWithDepartmentAndPhones(contactDTO.getId())
+        if (contactFormDTO.getId() != null) {
+            contact = contactRepository.findByIdWithDepartmentAndPhones(contactFormDTO.getId())
                 .orElseThrow(() -> new EntityNotFoundException(
-                    "Contact not found with id: " + contactDTO.getId()));
+                    "Contact not found with id: " + contactFormDTO.getId()));
         } else {
             contact = new Contact();
         }
         // Обновляем поля
-        contact.setFullName(contactDTO.getFullName().trim());
-        contact.setPosition(contactDTO.getPosition().trim());
+        contact.setFullName(contactFormDTO.getFullName().trim());
+        contact.setPosition(contactFormDTO.getPosition().trim());
 
-        Long newDepartmentId = contactDTO.getDepartmentId();
+        Long newDepartmentId = contactFormDTO.getDepartmentId();
         Long currentDepartmentId =
             contact.getDepartment() != null ? contact.getDepartment().getId() : null;
 
         // Устанавливаем подразделение
         if (!Objects.equals(newDepartmentId, currentDepartmentId)) {
             if (newDepartmentId != null) {
-                Department department = departmentRepository.findById(contactDTO.getDepartmentId())
+                Department department = departmentRepository.findById(contactFormDTO.getDepartmentId())
                     .orElseThrow(() -> new EntityNotFoundException(
-                        "Department not found with id: " + contactDTO.getDepartmentId()));
+                        "Department not found with id: " + contactFormDTO.getDepartmentId()));
                 contact.setDepartment(department);
             } else {
                 contact.setDepartment(null);
             }
         }
         //Обновляем телефоны только если изменилось
-        updatePhonesIfChanged(contact, contactDTO);
+        updatePhonesIfChanged(contact, contactFormDTO);
 
         Contact savedContact = contactRepository.save(contact);
         log.info("Contact saved: {} successfully", savedContact.getId());
@@ -80,25 +81,25 @@ public class ContactService {
         return ContactDTO.fromEntity(savedContact);
     }
 
-    private void updatePhonesIfChanged(Contact contact, ContactDTO contactDTO) {
-        List<String> newWorkPhones = filterEmptyPhones(contactDTO.getWorkPhones());
-        List<String> newWorkMobilePhones = filterEmptyPhones(contactDTO.getWorkMobilePhones());
-        List<String> newPersonalPhones = filterEmptyPhones(contactDTO.getPersonalPhones());
+    private void updatePhonesIfChanged(Contact contact, ContactFormDTO contactFormDTO) {
+        List<String> newWorkPhones = filterEmptyPhones(contactFormDTO.getWorkPhones());
+        List<String> newWorkMobilePhones = filterEmptyPhones(contactFormDTO.getWorkMobilePhones());
+        List<String> newPersonalPhones = filterEmptyPhones(contactFormDTO.getPersonalPhones());
 
         // Очищаем и обновляем телефоны
         if (!newWorkPhones.equals(contact.getWorkPhones())) {
             contact.getWorkPhones().clear();
-            contact.getWorkPhones().addAll(contactDTO.getWorkPhones());
+            contact.getWorkPhones().addAll(contactFormDTO.getWorkPhones());
         }
 
         if (!newWorkMobilePhones.equals(contact.getWorkMobilePhones())) {
             contact.getWorkMobilePhones().clear();
-            contact.getWorkMobilePhones().addAll(contactDTO.getWorkMobilePhones());
+            contact.getWorkMobilePhones().addAll(contactFormDTO.getWorkMobilePhones());
         }
 
         if (!newPersonalPhones.equals(contact.getPersonalPhones())) {
             contact.getPersonalPhones().clear();
-            contact.getPersonalPhones().addAll(contactDTO.getPersonalPhones());
+            contact.getPersonalPhones().addAll(contactFormDTO.getPersonalPhones());
         }
     }
 

@@ -1,10 +1,10 @@
 package com.ivanzlotnikov.phone_book.phonebook.contact.controller;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.service.ContactService;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
-import io.micrometer.common.util.StringUtils;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -62,27 +62,26 @@ public class ContactController {
 
     @GetMapping("/new")
     public String showContactForm(Model model) {
-        model.addAttribute("contact", new ContactDTO());
+        model.addAttribute("contact", new ContactFormDTO());
         model.addAttribute("departments", departmentService.findAllForForms());
         return "contacts/form";
     }
 
     @GetMapping("/edit/{id}")
     public String editContact(@PathVariable Long id, Model model) {
-        ContactDTO contact = contactService.findById(id)
+        ContactDTO contactDTO = contactService.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
 
-        model.addAttribute("contact", contact);
+        ContactFormDTO contactFormDTO = ContactFormDTO.from(contactDTO);
+
+        model.addAttribute("contact", contactFormDTO);
         model.addAttribute("departments", departmentService.findAllForForms());
         return "contacts/form";
     }
 
     @PostMapping("/save")
     public String saveContact(
-        @RequestParam(value = "workPhones", required = false) List<String> workPhones,
-        @RequestParam(value = "workMobilePhones", required = false) List<String> workMobilePhones,
-        @RequestParam(value = "personalPhones", required = false) List<String> personalPhones,
-        @Valid @ModelAttribute("contact") ContactDTO contactDTO,
+        @Valid @ModelAttribute("contact") ContactFormDTO contactFormDTO,
         BindingResult bindingResult,
         Model model,
         RedirectAttributes redirectAttributes
@@ -94,24 +93,19 @@ public class ContactController {
         }
 
         try {
-            // Устанавливаем телефоны из параметров
-            contactDTO.setWorkPhones(workPhones != null ? workPhones : List.of());
-            contactDTO.setWorkMobilePhones(workMobilePhones != null ? workMobilePhones : List.of());
-            contactDTO.setPersonalPhones(personalPhones != null ? personalPhones : List.of());
-
             // Проверка дубликатов только для новых контактов
-            if (contactDTO.getId() == null &&
+            if (contactFormDTO.getId() == null &&
                 contactService.existsByFullNameAndPosition(
-                    contactDTO.getFullName(), contactDTO.getPosition())) {
+                    contactFormDTO.getFullName(), contactFormDTO.getPosition())) {
                 bindingResult.rejectValue("fullName", "duplicate",
                     "Контакт с таким ФИО и должностью уже существует");
                 model.addAttribute("departments", departmentService.findAllForForms());
                 return "contacts/form";
             }
 
-            ContactDTO savedContact = contactService.save(contactDTO);
+            ContactDTO savedContact = contactService.save(contactFormDTO);
 
-            String message = contactDTO.getId() == null ?
+            String message = contactFormDTO.getId() == null ?
                 "Контакт успешно создан" : "Контакт успешно обновлен";
             redirectAttributes.addFlashAttribute("successMessage", message);
 

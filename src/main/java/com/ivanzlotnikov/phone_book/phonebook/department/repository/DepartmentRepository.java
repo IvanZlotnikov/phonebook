@@ -1,16 +1,14 @@
 package com.ivanzlotnikov.phone_book.phonebook.department.repository;
 
+import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
-
 
     // Корневые подразделения
     List<Department> findByParentDepartmentIsNull();
@@ -38,13 +36,15 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
                 FROM departments d
                 INNER JOIN sub_departments sd ON d.parent_department_id = sd.id
             )
-            SELECT * FROM sub_departments WHERE id != :departmentId
+            SELECT * FROM departments WHERE id IN (SELECT id FROM sub_departments WHERE id != :departmentId)
         """, nativeQuery = true)
     List<Department> findAllSubDepartments(@Param("departmentId") Long departmentId);
 
-    @Query("SELECT d FROM Department d where LOWER(d.name) LIKE LOWER(concat('%', :name,'%'))")
-    List<Department> findByNameContainingIgnoreCase(@Param("name") String name);
+    //Поиск по имени без учета регистра
+    List<Department> findByNameContainingIgnoreCase(String name);
 
-    @Query("SELECT d, COUNT(c) as contactCount FROM Department d LEFT JOIN Contact c ON c.department = d GROUP BY d")
-    List<Object[]> findAllWithContactCount();
+    // Список подразделений с количеством контактов
+    @Query("SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d,COUNT(c.id)) " +
+           "FROM Department d LEFT JOIN d.contacts c GROUP BY d.id")
+    List<DepartmentWithContactCountDTO> findAllWithContactCount();
 }

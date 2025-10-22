@@ -3,19 +3,17 @@ package com.ivanzlotnikov.phone_book.phonebook.contact.service;
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.entity.Contact;
+import com.ivanzlotnikov.phone_book.phonebook.contact.mapper.ContactMapper;
 import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
-import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,101 +24,37 @@ import org.springframework.transaction.annotation.Transactional;
 public class ContactService {
 
     private final ContactRepository contactRepository;
-    private final DepartmentRepository departmentRepository;
+    private final ContactMapper contactMapper;
     private final DepartmentService departmentService;
 
     @Transactional(readOnly = true)
-    public List<ContactDTO> findAll() {
-        return contactRepository.findAllWithDepartment()
-            .stream()
-            .map(ContactDTO::fromEntity)
-            .toList();
+    public Page<ContactDTO> findAll(Pageable pageable) {
+        log.info("Fetching all contacts for page {} with size {}", pageable.getPageNumber(),
+            pageable.getPageSize());
+        Page<Contact> contacts = contactRepository.findAllWithDepartment(pageable);
+        return contacts.map(contactMapper::toDto);
     }
 
     @Transactional(readOnly = true)
-    public Optional<ContactDTO> findById(long id) {
-        return contactRepository.findByIdWithDepartmentAndPhones(id)
-            .map(ContactDTO::fromEntity);
+    public ContactDTO findById(Long id) {
+        log.info("Finding contacts by id: {}", id);
+        Contact contact = contactRepository.findByIdWithDepartment(id)
+            .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
+        return contactMapper.toDto(contact);
     }
 
-    public ContactDTO save(ContactFormDTO contactFormDTO) {
-        Contact contact;
-
-        if (contactFormDTO.getId() != null) {
-            contact = contactRepository.findByIdWithDepartmentAndPhones(contactFormDTO.getId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                    "Contact not found with id: " + contactFormDTO.getId()));
-        } else {
-            contact = new Contact();
-        }
-        // Обновляем поля
-        contact.setFullName(contactFormDTO.getFullName().trim());
-        contact.setPosition(contactFormDTO.getPosition().trim());
-
-        Long newDepartmentId = contactFormDTO.getDepartmentId();
-        Long currentDepartmentId =
-            contact.getDepartment() != null ? contact.getDepartment().getId() : null;
-
-        // Устанавливаем подразделение
-        if (!Objects.equals(newDepartmentId, currentDepartmentId)) {
-            if (newDepartmentId != null) {
-                Department department = departmentRepository.findById(contactFormDTO.getDepartmentId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                        "Department not found with id: " + contactFormDTO.getDepartmentId()));
-                contact.setDepartment(department);
-            } else {
-                contact.setDepartment(null);
-            }
-        }
-        //Обновляем телефоны только если изменилось
-        updatePhonesIfChanged(contact, contactFormDTO);
-
+    public ContactDTO save(ContactFormDTO contactDTO) {
+        log.info("Saving contact with id: {}", contactDTO.getId());
+        Contact contact = contactMapper.toEntity(contactDTO);
         Contact savedContact = contactRepository.save(contact);
-        log.info("Contact saved: {} successfully", savedContact.getId());
-
-        return ContactDTO.fromEntity(savedContact);
-    }
-
-    private void updatePhonesIfChanged(Contact contact, ContactFormDTO contactFormDTO) {
-        List<String> newWorkPhones = filterEmptyPhones(contactFormDTO.getWorkPhones());
-        List<String> newWorkMobilePhones = filterEmptyPhones(contactFormDTO.getWorkMobilePhones());
-        List<String> newPersonalPhones = filterEmptyPhones(contactFormDTO.getPersonalPhones());
-
-        // Очищаем и обновляем телефоны
-        if (!newWorkPhones.equals(contact.getWorkPhones())) {
-            contact.getWorkPhones().clear();
-            contact.getWorkPhones().addAll(contactFormDTO.getWorkPhones());
-        }
-
-        if (!newWorkMobilePhones.equals(contact.getWorkMobilePhones())) {
-            contact.getWorkMobilePhones().clear();
-            contact.getWorkMobilePhones().addAll(contactFormDTO.getWorkMobilePhones());
-        }
-
-        if (!newPersonalPhones.equals(contact.getPersonalPhones())) {
-            contact.getPersonalPhones().clear();
-            contact.getPersonalPhones().addAll(contactFormDTO.getPersonalPhones());
-        }
-    }
-
-    private List<String> filterEmptyPhones(List<String> phones) {
-        if (phones == null) {
-            return List.of();
-        }
-        return phones.stream()
-            .filter(phone -> phone != null && !phone.trim().isEmpty())
-            .map(String::trim)
-            .toList();
+        return contactMapper.toDto(savedContact);
     }
 
     public void deleteById(long id) {
-        try {
-            contactRepository.deleteById(id);
-            log.info("Contact deleted: {} successfully", id);
-
-        } catch (EmptyResultDataAccessException e) {
+        if (!contactRepository.existsById(id)) {
             throw new EntityNotFoundException("Contact not found with id: " + id);
         }
+        contactRepository.deleteById(id);
     }
 
     public void deleteAllById(List<Long> ids) {
@@ -128,50 +62,60 @@ public class ContactService {
             log.warn("Attempt to delete contacts with empty or null ID list");
             return;
         }
-        int deletedCount = contactRepository.deleteAllByIdIn(ids);
-        log.info("Successfully deleted {} contacts with IDs: {}", deletedCount, ids);
+        contactRepository.deleteAllByIdIn(ids);
+        log.info("Successfully deleted contacts with IDs: {}", ids);
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<ContactDTO> searchByName(String name, Pageable pageable) {
+        log.info("Searching contacts by name: {}", name);
+        return contactRepository.findByFullNameContainingIgnoreCase(name.trim(), pageable)
+            .map(contactMapper::toDto);
+    }
+
+
+    @Transactional(readOnly = true)
+    public Page<ContactDTO> findByDepartmentHierarchy(Long departmentId, Pageable pageable) {
+        // Получаем всех потомков департамента
+        List<Department> departments = departmentService.getDepartmentsHierarchy(departmentId);
+
+        // Формируем список ID: корень + все потомки
+        List<Long> departmentIds =
+            new ArrayList<>(departments.stream()
+                .map(Department::getId)
+                .toList());
+        departmentIds.add(departmentId);
+
+        // Выполняем пейджинговый запрос с join fetch департамента
+        return contactRepository.findByDepartmentIdInWithDepartment(departmentIds, pageable)
+            .map(contactMapper::toDto);
     }
 
     @Transactional(readOnly = true)
-    public List<ContactDTO> findByDepartmentHierarchy(Long departmentId) {
-        Department department = departmentRepository.findById(departmentId)
-            .orElseThrow(
-                () -> new EntityNotFoundException(
-                    "Department not found with id: " + departmentId));
+    public Page<ContactDTO> searchByNameAndDepartment(String name, Long departmentId, Pageable pageable) {
+        log.info("Searching contacts by name: {} and department: {}", name, departmentId);
+        
+        // Получаем департамент с потомками
+        List<Department> departments = departmentService.getDepartmentsHierarchy(departmentId);
+        List<Long> departmentIds = new ArrayList<>(departments.stream()
+            .map(Department::getId)
+            .toList());
+        departmentIds.add(departmentId);
 
-        List<Department> allDepartments = new ArrayList<>(
-            departmentService.getDepartmentsHierarchy(departmentId));
-        allDepartments.add(department);
-
-        return contactRepository.findByDepartmentInWithDepartment(allDepartments)
-            .stream()
-            .map(ContactDTO::fromEntity)
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<ContactDTO> searchByName(String name) {
-        return contactRepository.findByFullNameContainingIgnoreCaseWithDepartment(name.trim())
-            .stream()
-            .map(ContactDTO::fromEntity)
-            .collect(Collectors.toList());
+        // Выполняем комбинированный поиск
+        return contactRepository.findByNameAndDepartmentIds(name.trim(), departmentIds, pageable)
+            .map(contactMapper::toDto);
     }
 
     @Transactional(readOnly = true)
     public boolean existsByFullNameAndPosition(String fullName, String position) {
-        return contactRepository.findByFullNameAndPosition(fullName.trim(), position.trim())
-            .isPresent();
+        return contactRepository.existsByFullNameAndPosition(fullName.trim(), position.trim());
     }
 
     @Transactional(readOnly = true)
     public long count() {
         return contactRepository.count();
     }
-
-    @Transactional(readOnly = true)
-    public long countByDepartment(Long departmentId) {
-        return contactRepository.countByDepartmentId(departmentId);
-    }
-
 
 }

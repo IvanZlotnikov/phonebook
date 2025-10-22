@@ -16,22 +16,24 @@ public class GlobalExceptionHandler {
     public String handleEntityNotFoundException(EntityNotFoundException e,
                                                RedirectAttributes redirectAttributes) {
         log.warn("Entity not found: {}", e.getMessage());
-        redirectAttributes.addFlashAttribute("errorMessage", "Запись не найдена");
-        return "redirect:/contacts";
+        return redirectWithError(redirectAttributes, "Запись не найдена");
     }
 
     @ExceptionHandler(IllegalStateException.class)
     public String handleIllegalStateException(IllegalStateException e,
-        RedirectAttributes redirectAttributes) {
+                                              RedirectAttributes redirectAttributes) {
         log.warn("Illegal state: {}", e.getMessage());
-        redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-        return "redirect:/contacts";
+        return redirectWithError(redirectAttributes, e.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
-    public String handleGeneralException(Exception e, Model model) {
+    public String handleGeneralException(Exception e, RedirectAttributes redirectAttributes) {
         log.error("Unexpected error occurred", e);
-        model.addAttribute("errorMessage", "Произошла непредвиденная ошибка");
-        return "error";
+        return redirectWithError(redirectAttributes, "Произошла непредвиденная ошибка");
+    }
+
+    private String redirectWithError(RedirectAttributes redirectAttributes,String message){
+        redirectAttributes.addFlashAttribute("errorMessage", message);
+        return "redirect:/contacts";
     }
 }

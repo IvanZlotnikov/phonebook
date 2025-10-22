@@ -21,14 +21,7 @@ VALUES ('user',
         true)
 ON CONFLICT (username) DO NOTHING;
 
---
--- -- Роли пользователей
--- INSERT INTO authorities (username, authority)
--- VALUES ('user', 'ROLE_USER'),
---        ('admin', 'ROLE_ADMIN')
--- ON CONFLICT (username, authority) DO NOTHING;
--- --
--- --
+
 -- -- Тестовые контакты
 
 -- Контакты для Руководства
@@ -38,6 +31,7 @@ INSERT INTO contacts (full_name, position, department_id) VALUES
 ON CONFLICT DO NOTHING;
 
 -- Контакты для Разработки
+
 INSERT INTO contacts (full_name, position, department_id) VALUES
                                                               ('Сидоров Алексей Петрович', 'Senior разработчик', 4),
                                                               ('Козлова Анна Викторовна', 'Middle разработчик', 4),

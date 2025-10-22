@@ -1,3 +1,4 @@
+
 package com.ivanzlotnikov.phone_book.phonebook.config;
 
 import com.ivanzlotnikov.phone_book.phonebook.auth.service.CustomUserDetailsService;
@@ -30,13 +31,14 @@ public class SecurityConfig {
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
             .authorizeHttpRequests(authz -> authz
+                // 1. Публичные ресурсы
                 .requestMatchers("/", "/home", "/css/**", "/js/**", "/images/**",
                     "/webjars/**", "/login", "/error").permitAll()
-                .requestMatchers("/contacts/delete/**","/contacts/delete")
-                .hasRole("ADMIN")
-                .requestMatchers("/contacts/edit/**", "/contacts/new", "/contacts/save")
-                .hasRole("ADMIN")
-                .requestMatchers("/contacts","/contacts/**").authenticated()
+                // 2. Ресурсы только для АДМИНА
+                .requestMatchers("/contacts/new", "/contacts/save", "/contacts/edit/**", "/contacts/delete/**").hasRole("ADMIN")
+                // 3. Ресурсы для всех аутентифицированных пользователей
+                .requestMatchers("/contacts", "/contacts/**").authenticated()
+                // 4. Все остальные запросы требуют аутентификации
                 .anyRequest().authenticated()
             )
             .userDetailsService(userDetailsService)

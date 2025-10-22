@@ -2,6 +2,7 @@ package com.ivanzlotnikov.phone_book.phonebook.department.service;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
+import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
@@ -26,17 +27,12 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
         return departmentRepository.findAllWithContactCount().stream()
-            .map(this::mapToDepartmentDTOWithCount)
+            .map((DepartmentWithContactCountDTO agg) -> {
+                DepartmentDTO dto = DepartmentDTO.fromEntity(agg.department());
+                dto.setContactCount((int) agg.contactCount());
+                return dto;
+            })
             .toList();
-    }
-
-    private DepartmentDTO mapToDepartmentDTOWithCount(Object[] results) {
-        Department department = (Department) results[0];
-        Long contactCount = (Long) results[1];
-
-        DepartmentDTO dto = DepartmentDTO.fromEntity(department);
-        dto.setContactCount(contactCount.intValue());
-        return dto;
     }
 
     // Получить подразделение по ID
@@ -199,17 +195,7 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAllForForms() {
         return departmentRepository.findAll().stream()
-            .map(dept -> {
-                DepartmentDTO dto = new DepartmentDTO();
-                dto.setId(dept.getId());
-                dto.setName(dept.getName());
-
-                if (dept.getParentDepartment() != null) {
-                    dto.setParentDepartmentId(dept.getParentDepartment().getId());
-                    dto.setParentDepartmentName(dept.getParentDepartment().getName());
-                }
-                return dto;
-            })
+            .map(DepartmentDTO::fromEntity)
             .toList();
     }
 }

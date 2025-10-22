@@ -2,16 +2,21 @@ package com.ivanzlotnikov.phone_book.phonebook.contact.controller;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
-import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.mapper.ContactMapper;
 import com.ivanzlotnikov.phone_book.phonebook.contact.service.ContactService;
+import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
-import jakarta.persistence.EntityNotFoundException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -31,48 +36,80 @@ public class ContactController {
 
     private final ContactService contactService;
     private final DepartmentService departmentService;
+    private final ContactMapper contactMapper;
 
     @GetMapping
     public String listContacts(@RequestParam(value = "dept", required = false) Long departmentId,
-                               @RequestParam(value = "search", required = false) String searchQuery,
-                               Model model) {
-        log.info("Listing contacts, departmentId: {}, searchQuery: {}", departmentId, searchQuery);
+        @RequestParam(value = "search", required = false) String searchQuery,
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "20") int size,
+        Model model) {
 
-        List<ContactDTO> contacts;
-        if (searchQuery != null && !searchQuery.trim().isEmpty()) {
-            contacts = contactService.searchByName(searchQuery.trim());
-        } else if (departmentId != null) {
-            contacts = contactService.findByDepartmentHierarchy(departmentId);
+        int normalizedSize = (size <= 0 || size > 100) ? 20 : size;
+        int normalizedPage = Math.max(page, 0);
+        Pageable pageable = PageRequest.of(normalizedPage, normalizedSize,
+            Sort.by("fullName").ascending());
+        Page<ContactDTO> contactsPage;
+
+        boolean hasSearchQuery = searchQuery != null && !searchQuery.trim().isEmpty();
+        boolean hasDepartment = departmentId != null;
+
+        if (hasSearchQuery && hasDepartment) {
+            // Комбинированный поиск по имени И департаменту
+            contactsPage = contactService.searchByNameAndDepartment(searchQuery.trim(),
+                departmentId, pageable);
+        } else if (hasSearchQuery) {
+            // Только по имени
+            contactsPage = contactService.searchByName(searchQuery.trim(), pageable);
+        } else if (hasDepartment) {
+            // Только по департаменту
+            contactsPage = contactService.findByDepartmentHierarchy(departmentId, pageable);
         } else {
-            contacts = contactService.findAll();
+            // Все контакты
+            contactsPage = contactService.findAll(pageable);
         }
 
-        //Создаем map для быстрого доступа к названиям подразделений
-        List<DepartmentDTO> allDepartments = departmentService.findAll();
-        Map<Long, String> departmentMap = allDepartments.stream()
-            .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName));
+        // Для селекта департаментов и отображения названия департамента
+        var allDepartments = departmentService.findAll();
+        var departmentMap = allDepartments.stream()
+            .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName
+            ));
 
-        model.addAttribute("contacts", contacts);
+        //
+        int totalPages = contactsPage.getTotalPages();
+        int window = 3;
+        int startPage = Math.max(0, normalizedPage - window);
+        int endPage = Math.min(totalPages - 1, normalizedPage + window);
+
+        model.addAttribute("startPage", startPage);
+        model.addAttribute("endPage", endPage);
+
+        // Атрибуты для шаблона
+        model.addAttribute("contactsPage", contactsPage);
+        model.addAttribute("contacts", contactsPage.getContent());
+        model.addAttribute("page", contactsPage.getNumber());
+        model.addAttribute("size", contactsPage.getSize());
+        model.addAttribute("totalPages", contactsPage.getTotalPages());
+        model.addAttribute("totalElements", contactsPage.getTotalElements());
         model.addAttribute("departments", allDepartments);
         model.addAttribute("departmentMap", departmentMap);
-        model.addAttribute("totalContacts", contactService.count());
 
         return "contacts/list";
     }
 
     @GetMapping("/new")
-    public String showContactForm(Model model) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public String newContactForm(Model model) {
         model.addAttribute("contact", new ContactFormDTO());
         model.addAttribute("departments", departmentService.findAllForForms());
         return "contacts/form";
     }
 
     @GetMapping("/edit/{id}")
-    public String editContact(@PathVariable Long id, Model model) {
-        ContactDTO contactDTO = contactService.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
-
-        ContactFormDTO contactFormDTO = ContactFormDTO.from(contactDTO);
+    @PreAuthorize("hasRole('ADMIN')")
+    public String editContactForm(@PathVariable Long id, Model model) {
+        ContactDTO contactDTO = contactService.findById(id);
+        ContactFormDTO contactFormDTO = contactMapper.toFormDTO(contactDTO);
 
         model.addAttribute("contact", contactFormDTO);
         model.addAttribute("departments", departmentService.findAllForForms());
@@ -80,8 +117,7 @@ public class ContactController {
     }
 
     @PostMapping("/save")
-    public String saveContact(
-        @Valid @ModelAttribute("contact") ContactFormDTO contactFormDTO,
+    public String saveContact(@Valid @ModelAttribute("contact") ContactFormDTO contactFormDTO,
         BindingResult bindingResult,
         Model model,
         RedirectAttributes redirectAttributes
@@ -102,8 +138,7 @@ public class ContactController {
                 model.addAttribute("departments", departmentService.findAllForForms());
                 return "contacts/form";
             }
-
-            ContactDTO savedContact = contactService.save(contactFormDTO);
+            contactService.save(contactFormDTO);
 
             String message = contactFormDTO.getId() == null ?
                 "Контакт успешно создан" : "Контакт успешно обновлен";
@@ -119,8 +154,9 @@ public class ContactController {
     }
 
     @PostMapping("/delete/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public String deleteContact(@PathVariable Long id,
-                                RedirectAttributes redirectAttributes) {
+        RedirectAttributes redirectAttributes) {
         try {
             contactService.deleteById(id);
             redirectAttributes.addFlashAttribute("successMessage", "Контакт успешно удален");
@@ -133,6 +169,7 @@ public class ContactController {
     }
 
     @PostMapping("/delete")
+    @PreAuthorize("hasRole('ADMIN')")
     public String deleteMultipleContacts(
         @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
         RedirectAttributes redirectAttributes) {

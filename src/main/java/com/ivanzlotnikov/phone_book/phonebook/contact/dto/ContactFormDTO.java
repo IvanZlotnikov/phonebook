@@ -2,6 +2,7 @@ package com.ivanzlotnikov.phone_book.phonebook.contact.dto;
 
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,19 +30,16 @@ public class ContactFormDTO {
 
     private Long departmentId;
 
-    private List<String> workPhones = new ArrayList<>();
-    private List<String> workMobilePhones = new ArrayList<>();
-    private List<String> personalPhones = new ArrayList<>();
+    @Size(max = 5, message = "Список служебных телефонов не должен содержать более 5 номеров")
+    private List<@Pattern(regexp = "^[+0-9()\\-\\s]{5,20}$",
+        message = "Неверный формат служебного телефона") String> workPhones = new ArrayList<>();
 
-    public static ContactFormDTO from(ContactDTO dto) {
-        ContactFormDTO formDTO = new ContactFormDTO();
-        formDTO.setId(dto.getId());
-        formDTO.setFullName(dto.getFullName());
-        formDTO.setPosition(dto.getPosition());
-        formDTO.setDepartmentId(dto.getDepartmentId());
-        formDTO.setWorkPhones(dto.getWorkPhones());
-        formDTO.setWorkMobilePhones(dto.getWorkMobilePhones());
-        formDTO.setPersonalPhones(dto.getPersonalPhones());
-        return formDTO;
-    }
+    @Size(max = 5, message = "Список служебных мобильных телефонов не должен содержать более 5 номеров")
+    private List<@Pattern(regexp = "^[+0-9()\\-\\s]{5,20}$",
+        message = "Неверный формат служебного мобильного телефона") String> workMobilePhones = new ArrayList<>();
+
+    @Size(max = 5, message = "Список личных телефонов не должен содержать более 5 номеров")
+    private List<@Pattern(regexp = "^[+0-9()\\-\\s]{5,20}$",
+        message = "Неверный формат личного телефона") String> personalPhones = new ArrayList<>();
+
 }

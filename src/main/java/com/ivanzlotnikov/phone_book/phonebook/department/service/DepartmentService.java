@@ -4,11 +4,14 @@ import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactReposito
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
+import com.ivanzlotnikov.phone_book.phonebook.department.mapper.DepartmentMapper;
 import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -20,26 +23,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 public class DepartmentService {
 
+    private static final int MAX_HIERARCHY_DEPTH = 10;
+    private static final int MAX_TREE_DEPTH = 5;
+
     private final DepartmentRepository departmentRepository;
     private final ContactRepository contactRepository;
+    private final DepartmentMapper departmentMapper;
 
-    // Получить все подразделения
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
         return departmentRepository.findAllWithContactCount().stream()
             .map((DepartmentWithContactCountDTO agg) -> {
-                DepartmentDTO dto = DepartmentDTO.fromEntity(agg.department());
+                DepartmentDTO dto = departmentMapper.toDto(agg.department());
                 dto.setContactCount((int) agg.contactCount());
                 return dto;
             })
             .toList();
     }
 
-    // Получить подразделение по ID
     @Transactional(readOnly = true)
     public Optional<DepartmentDTO> findById(Long id) {
         return departmentRepository.findById(id)
-            .map(DepartmentDTO::fromEntity);
+            .map(departmentMapper::toDto);
     }
 
     // Сохранить подразделение
@@ -66,7 +71,7 @@ public class DepartmentService {
         Department savedDepartment = departmentRepository.save(department);
         log.info("Department {} saved successfully", savedDepartment.getId());
 
-        return DepartmentDTO.fromEntity(savedDepartment);
+        return departmentMapper.toDto(savedDepartment);
     }
 
     // Удалить подразделение
@@ -87,68 +92,94 @@ public class DepartmentService {
         log.info("Department {} deleted successfully", id);
     }
 
-    // Получить все корневые подразделения
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findRootDepartments() {
-        return departmentRepository.findByParentDepartmentIsNull().stream()
-            .map(dept -> {
-                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
-                dto.setContactCount((int) contactRepository.countByDepartmentId(dept.getId()));
+        // Решение N+1: используем JOIN вместо отдельных запросов
+        return departmentRepository.findRootDepartmentsWithContactCount().stream()
+            .map(agg -> {
+                DepartmentDTO dto = departmentMapper.toDto(agg.department());
+                dto.setContactCount((int) agg.contactCount());
                 return dto;
             })
             .toList();
     }
 
+    private DepartmentDTO toDtoWithContactCount(Department department) {
+        DepartmentDTO dto = departmentMapper.toDto(department);
+        dto.setContactCount((int) contactRepository.countByDepartmentId(department.getId()));
+        return dto;
+    }
 
-    // Получить прямых потомков подразделения
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findDirectChildren(Long parentId) {
         return departmentRepository.findByParentDepartmentId(parentId).stream()
-            .map(DepartmentDTO::fromEntity)
+            .map(departmentMapper::toDto)
             .toList();
     }
 
-    // Получить все подразделения в иерархии (рекурсивно)
     @Transactional(readOnly = true)
     public List<Department> getDepartmentsHierarchy(Long departmentId) {
+        // Решение N+1: загружаем все департаменты одним запросом и строим иерархию в памяти
         Department department = departmentRepository.findById(departmentId)
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
 
-        List<Department> allDepartments = new ArrayList<>();
-        addChildrenToHierarchy(department, allDepartments, 10);
-        return allDepartments;
+        // Загружаем все департаменты одним запросом
+        List<Department> allDepartments = departmentRepository.findAllWithParent();
+        
+        // Создаем Map для быстрого поиска детей по parent_id
+        Map<Long, List<Department>> childrenMap = allDepartments.stream()
+            .filter(d -> d.getParentDepartment() != null)
+            .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
+
+        // Собираем иерархию в памяти
+        List<Department> result = new ArrayList<>();
+        collectChildrenFromMap(department.getId(), childrenMap, result, MAX_HIERARCHY_DEPTH);
+        return result;
     }
 
-    // Рекурсивный метод для построения иерархии
-    private void addChildrenToHierarchy(Department parent, List<Department> hierarchy,
-        int maxDepth) {
+    private void collectChildrenFromMap(Long parentId, Map<Long, List<Department>> childrenMap, 
+                                        List<Department> result, int maxDepth) {
         if (maxDepth <= 0) {
-            log.warn("Max depth reached for department hierarchy starting from {}", parent.getId());
+            log.warn("Max depth reached for department hierarchy starting from {}", parentId);
             return;
         }
 
-        List<Department> children = departmentRepository.findByParentDepartment(parent);
+        List<Department> children = childrenMap.getOrDefault(parentId, List.of());
         for (Department child : children) {
-            hierarchy.add(child);
-            addChildrenToHierarchy(child, hierarchy, maxDepth - 1);
+            result.add(child);
+            collectChildrenFromMap(child.getId(), childrenMap, result, maxDepth - 1);
         }
     }
 
-    // Получить все подразделения в виде дерева
     @Transactional(readOnly = true)
     public List<DepartmentDTO> getDepartmentTree() {
-        return departmentRepository.findByParentDepartmentIsNull()
-            .stream()
-            .map(dept -> buildDepartmentTree(dept, 5))
+        // Решение N+1: загружаем все департаменты одним запросом
+        List<Department> allDepartments = departmentRepository.findAllWithParent();
+        
+        // Создаем Map для быстрого поиска детей
+        Map<Long, List<Department>> childrenMap = allDepartments.stream()
+            .filter(d -> d.getParentDepartment() != null)
+            .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
+        
+        // Находим корневые департаменты
+        List<Department> rootDepartments = allDepartments.stream()
+            .filter(d -> d.getParentDepartment() == null)
+            .toList();
+        
+        // Строим дерево для каждого корневого департамента
+        return rootDepartments.stream()
+            .map(dept -> buildDepartmentTreeFromMap(dept, childrenMap, MAX_TREE_DEPTH))
             .toList();
     }
 
-    private DepartmentDTO buildDepartmentTree(Department department, int maxDepth) {
-        DepartmentDTO dto = DepartmentDTO.fromEntity(department);
+    private DepartmentDTO buildDepartmentTreeFromMap(Department department, 
+                                                      Map<Long, List<Department>> childrenMap, 
+                                                      int maxDepth) {
+        DepartmentDTO dto = departmentMapper.toDto(department);
         if (maxDepth > 0) {
-            List<Department> children = departmentRepository.findByParentDepartment(department);
+            List<Department> children = childrenMap.getOrDefault(department.getId(), List.of());
             dto.setChildrenDepartments(children.stream()
-                .map(child -> buildDepartmentTree(child, maxDepth - 1))
+                .map(child -> buildDepartmentTreeFromMap(child, childrenMap, maxDepth - 1))
                 .toList());
         }
         return dto;
@@ -156,11 +187,11 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public List<DepartmentDTO> searchByName(String name) {
-        return departmentRepository.findByNameContainingIgnoreCase(name.trim())
-            .stream()
-            .map(dept -> {
-                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
-                dto.setContactCount((int) contactRepository.countByDepartmentId(dept.getId()));
+        // Решение N+1: используем JOIN вместо отдельных запросов
+        return departmentRepository.findByNameWithContactCount(name.trim()).stream()
+            .map(agg -> {
+                DepartmentDTO dto = departmentMapper.toDto(agg.department());
+                dto.setContactCount((int) agg.contactCount());
                 return dto;
             })
             .toList();
@@ -172,30 +203,14 @@ public class DepartmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<DepartmentDTO> findAllWithContactCount() {
-        return departmentRepository.findAll().stream()
-            .map(dept -> {
-                DepartmentDTO dto = DepartmentDTO.fromEntity(dept);
-                dto.setContactCount(0);
-                return dto;
-            })
-            .toList();
-    }
-
-    @Transactional(readOnly = true)
     public long count() {
         return departmentRepository.count();
     }
 
     @Transactional(readOnly = true)
-    public long countContactsByDepartment(Long departmentId) {
-        return contactRepository.countByDepartmentId(departmentId);
-    }
-
-    @Transactional(readOnly = true)
     public List<DepartmentDTO> findAllForForms() {
         return departmentRepository.findAll().stream()
-            .map(DepartmentDTO::fromEntity)
+            .map(departmentMapper::toDto)
             .toList();
     }
 }

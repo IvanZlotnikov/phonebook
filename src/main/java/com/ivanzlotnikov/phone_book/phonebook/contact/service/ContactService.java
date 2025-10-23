@@ -77,17 +77,7 @@ public class ContactService {
 
     @Transactional(readOnly = true)
     public Page<ContactDTO> findByDepartmentHierarchy(Long departmentId, Pageable pageable) {
-        // Получаем всех потомков департамента
-        List<Department> departments = departmentService.getDepartmentsHierarchy(departmentId);
-
-        // Формируем список ID: корень + все потомки
-        List<Long> departmentIds =
-            new ArrayList<>(departments.stream()
-                .map(Department::getId)
-                .toList());
-        departmentIds.add(departmentId);
-
-        // Выполняем пейджинговый запрос с join fetch департамента
+        List<Long> departmentIds = getDepartmentIdsWithHierarchy(departmentId);
         return contactRepository.findByDepartmentIdInWithDepartment(departmentIds, pageable)
             .map(contactMapper::toDto);
     }
@@ -95,17 +85,18 @@ public class ContactService {
     @Transactional(readOnly = true)
     public Page<ContactDTO> searchByNameAndDepartment(String name, Long departmentId, Pageable pageable) {
         log.info("Searching contacts by name: {} and department: {}", name, departmentId);
-        
-        // Получаем департамент с потомками
-        List<Department> departments = departmentService.getDepartmentsHierarchy(departmentId);
-        List<Long> departmentIds = new ArrayList<>(departments.stream()
-            .map(Department::getId)
-            .toList());
-        departmentIds.add(departmentId);
-
-        // Выполняем комбинированный поиск
+        List<Long> departmentIds = getDepartmentIdsWithHierarchy(departmentId);
         return contactRepository.findByNameAndDepartmentIds(name.trim(), departmentIds, pageable)
             .map(contactMapper::toDto);
+    }
+
+    private List<Long> getDepartmentIdsWithHierarchy(Long departmentId) {
+        List<Department> departments = departmentService.getDepartmentsHierarchy(departmentId);
+        List<Long> departmentIds = departments.stream()
+            .map(Department::getId)
+            .collect(ArrayList::new, ArrayList::add, ArrayList::addAll);
+        departmentIds.add(departmentId);
+        return departmentIds;
     }
 
     @Transactional(readOnly = true)

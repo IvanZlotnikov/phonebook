@@ -1,4 +1,3 @@
-
 package com.ivanzlotnikov.phone_book.phonebook.config;
 
 import com.ivanzlotnikov.phone_book.phonebook.auth.service.CustomUserDetailsService;
@@ -27,25 +26,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-//            .csrf(AbstractHttpConfigurer::disable)
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
             .authorizeHttpRequests(authz -> authz
-                // 1. Публичные ресурсы
                 .requestMatchers("/", "/home", "/css/**", "/js/**", "/images/**",
                     "/webjars/**", "/login", "/error").permitAll()
-                // 2. Ресурсы только для АДМИНА
-                .requestMatchers("/contacts/new", "/contacts/save", "/contacts/edit/**", "/contacts/delete/**").hasRole("ADMIN")
-                // 3. Ресурсы для всех аутентифицированных пользователей
+                .requestMatchers("/contacts/new", "/contacts/save", "/contacts/edit/**", 
+                    "/contacts/delete/**").hasRole("ADMIN")
                 .requestMatchers("/contacts", "/contacts/**").authenticated()
-                // 4. Все остальные запросы требуют аутентификации
                 .anyRequest().authenticated()
             )
             .userDetailsService(userDetailsService)
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/login")
-                .defaultSuccessUrl("/contacts", true) // Перенаправлять на контакты после логина
+                .defaultSuccessUrl("/contacts", true)
                 .failureUrl("/login?error=true")
                 .permitAll()
             )

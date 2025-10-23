@@ -47,4 +47,28 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     @Query("SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d,COUNT(c.id)) " +
            "FROM Department d LEFT JOIN d.contacts c GROUP BY d.id")
     List<DepartmentWithContactCountDTO> findAllWithContactCount();
+
+    // Корневые подразделения с количеством контактов (решение N+1)
+    @Query("""
+        SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d, COUNT(c.id))
+        FROM Department d
+        LEFT JOIN d.contacts c
+        WHERE d.parentDepartment IS NULL
+        GROUP BY d.id, d.name, d.parentDepartment
+        """)
+    List<DepartmentWithContactCountDTO> findRootDepartmentsWithContactCount();
+
+    // Поиск по имени с количеством контактов (решение N+1)
+    @Query("""
+        SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d, COUNT(c.id))
+        FROM Department d
+        LEFT JOIN d.contacts c
+        WHERE LOWER(d.name) LIKE LOWER(CONCAT('%', :name, '%'))
+        GROUP BY d.id, d.name, d.parentDepartment
+        """)
+    List<DepartmentWithContactCountDTO> findByNameWithContactCount(@Param("name") String name);
+
+    // Загрузить все департаменты с родителями одним запросом (для построения иерархии в памяти)
+    @Query("SELECT d FROM Department d LEFT JOIN FETCH d.parentDepartment")
+    List<Department> findAllWithParent();
 }

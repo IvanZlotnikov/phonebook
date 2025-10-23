@@ -18,17 +18,11 @@ public interface ContactRepository extends JpaRepository<Contact, Long> {
     @Query("DELETE FROM Contact c WHERE c.id IN :ids")
     int deleteAllByIdIn(@Param("ids") List<Long> ids);
 
-    //    @Query("SELECT COUNT(c) FROM Contact c WHERE c.department.id =:departmentId")
     long countByDepartmentId(@Param("departmentId") Long departmentId);
 
-    //Пагинация общий список
-    Page<Contact> findAll(Pageable pageable);
-
-    //Поиск по имени
     @Query("SELECT c FROM Contact c LEFT JOIN FETCH c.department WHERE LOWER(c.fullName) LIKE LOWER(concat('%', :name, '%'))")
     Page<Contact> findByFullNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
-    Page<Contact> findByDepartmentId(Long departmentId, Pageable pageable);
     boolean existsByFullNameAndPosition(String fullName, String position);
 
     @Query("SELECT c FROM Contact c LEFT JOIN FETCH c.department WHERE c.id = :id")

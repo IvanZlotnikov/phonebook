@@ -26,24 +26,21 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-//            .csrf(AbstractHttpConfigurer::disable)
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/", "/home", "/css/**", "/js/**", "/images/**",
                     "/webjars/**", "/login", "/error").permitAll()
-                .requestMatchers("/contacts/delete/**","/contacts/delete")
-                .hasRole("ADMIN")
-                .requestMatchers("/contacts/edit/**", "/contacts/new", "/contacts/save")
-                .hasRole("ADMIN")
-                .requestMatchers("/contacts","/contacts/**").authenticated()
+                .requestMatchers("/contacts/new", "/contacts/save", "/contacts/edit/**", 
+                    "/contacts/delete/**").hasRole("ADMIN")
+                .requestMatchers("/contacts", "/contacts/**").authenticated()
                 .anyRequest().authenticated()
             )
             .userDetailsService(userDetailsService)
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/login")
-                .defaultSuccessUrl("/contacts", true) // Перенаправлять на контакты после логина
+                .defaultSuccessUrl("/contacts", true)
                 .failureUrl("/login?error=true")
                 .permitAll()
             )

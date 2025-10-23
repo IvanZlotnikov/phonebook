@@ -1,17 +1,24 @@
 package com.ivanzlotnikov.phone_book.phonebook.contact.controller;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
-import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.mapper.ContactMapper;
 import com.ivanzlotnikov.phone_book.phonebook.contact.service.ContactService;
+import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
-import io.micrometer.common.util.StringUtils;
-import jakarta.persistence.EntityNotFoundException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import jakarta.validation.Valid;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -29,104 +36,157 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @RequiredArgsConstructor
 public class ContactController {
 
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final int PAGINATION_WINDOW = 3;
+
     private final ContactService contactService;
     private final DepartmentService departmentService;
+    private final ContactMapper contactMapper;
 
     @GetMapping
     public String listContacts(@RequestParam(value = "dept", required = false) Long departmentId,
-                               @RequestParam(value = "search", required = false) String searchQuery,
-                               Model model) {
-        log.info("Listing contacts, departmentId: {}, searchQuery: {}", departmentId, searchQuery);
+        @RequestParam(value = "search", required = false) String searchQuery,
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        @RequestParam(value = "size", defaultValue = "20") int size,
+        Model model) {
 
-        List<ContactDTO> contacts;
-        if (searchQuery != null && !searchQuery.trim().isEmpty()) {
-            contacts = contactService.searchByName(searchQuery.trim());
-        } else if (departmentId != null) {
-            contacts = contactService.findByDepartmentHierarchy(departmentId);
-        } else {
-            contacts = contactService.findAll();
-        }
-
-        //Создаем map для быстрого доступа к названиям подразделений
+        Pageable pageable = createPageable(page, size);
+        Page<ContactDTO> contactsPage = fetchContacts(departmentId, searchQuery, pageable);
         List<DepartmentDTO> allDepartments = departmentService.findAll();
-        Map<Long, String> departmentMap = allDepartments.stream()
-            .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName));
 
-        model.addAttribute("contacts", contacts);
-        model.addAttribute("departments", allDepartments);
-        model.addAttribute("departmentMap", departmentMap);
-        model.addAttribute("totalContacts", contactService.count());
+        addPaginationAttributes(model, contactsPage, pageable.getPageNumber());
+        addContactAttributes(model, contactsPage, allDepartments);
 
         return "contacts/list";
     }
 
+    private Pageable createPageable(int page, int size) {
+        int normalizedSize = (size <= 0 || size > MAX_PAGE_SIZE) ? DEFAULT_PAGE_SIZE : size;
+        int normalizedPage = Math.max(page, 0);
+        return PageRequest.of(normalizedPage, normalizedSize, Sort.by("fullName").ascending());
+    }
+
+    private Page<ContactDTO> fetchContacts(Long departmentId, String searchQuery, Pageable pageable) {
+        boolean hasSearchQuery = searchQuery != null && !searchQuery.trim().isEmpty();
+        boolean hasDepartment = departmentId != null;
+
+        if (hasSearchQuery && hasDepartment) {
+            return contactService.searchByNameAndDepartment(searchQuery.trim(), departmentId, pageable);
+        } else if (hasSearchQuery) {
+            return contactService.searchByName(searchQuery.trim(), pageable);
+        } else if (hasDepartment) {
+            return contactService.findByDepartmentHierarchy(departmentId, pageable);
+        }
+        return contactService.findAll(pageable);
+    }
+
+    private void addPaginationAttributes(Model model, Page<ContactDTO> page, int currentPage) {
+        int totalPages = page.getTotalPages();
+        int startPage = Math.max(0, currentPage - PAGINATION_WINDOW);
+        int endPage = Math.min(totalPages - 1, currentPage + PAGINATION_WINDOW);
+
+        model.addAttribute("startPage", startPage);
+        model.addAttribute("endPage", endPage);
+        model.addAttribute("page", page.getNumber());
+        model.addAttribute("size", page.getSize());
+        model.addAttribute("totalPages", totalPages);
+        model.addAttribute("totalElements", page.getTotalElements());
+    }
+
+    private void addContactAttributes(Model model, Page<ContactDTO> contactsPage, List<DepartmentDTO> departments) {
+        model.addAttribute("contactsPage", contactsPage);
+        model.addAttribute("contacts", contactsPage.getContent());
+        model.addAttribute("departments", departments);
+        model.addAttribute("departmentMap", departments.stream()
+            .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName)));
+    }
+
     @GetMapping("/new")
-    public String showContactForm(Model model) {
-        model.addAttribute("contact", new ContactDTO());
-        model.addAttribute("departments", departmentService.findAllForForms());
+    @PreAuthorize("hasRole('ADMIN')")
+    public String newContactForm(Model model) {
+        addFormAttributes(model, new ContactFormDTO());
         return "contacts/form";
     }
 
     @GetMapping("/edit/{id}")
-    public String editContact(@PathVariable Long id, Model model) {
-        ContactDTO contact = contactService.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
-
-        model.addAttribute("contact", contact);
-        model.addAttribute("departments", departmentService.findAllForForms());
+    @PreAuthorize("hasRole('ADMIN')")
+    public String editContactForm(@PathVariable Long id,
+                                   @RequestParam(value = "search", required = false) String searchQuery,
+                                   @RequestParam(value = "dept", required = false) Long departmentId,
+                                   @RequestParam(value = "page", defaultValue = "0") int page,
+                                   Model model) {
+        ContactDTO contactDTO = contactService.findById(id);
+        ContactFormDTO formDTO = contactMapper.toFormDTO(contactDTO);
+        addFormAttributes(model, formDTO);
+        
+        // Сохраняем параметры поиска для возврата
+        model.addAttribute("returnSearch", searchQuery);
+        model.addAttribute("returnDept", departmentId);
+        model.addAttribute("returnPage", page);
+        
         return "contacts/form";
     }
 
+    private void addFormAttributes(Model model, ContactFormDTO contactFormDTO) {
+        model.addAttribute("contact", contactFormDTO);
+        model.addAttribute("departments", departmentService.findAllForForms());
+    }
+
     @PostMapping("/save")
-    public String saveContact(
-        @RequestParam(value = "workPhones", required = false) List<String> workPhones,
-        @RequestParam(value = "workMobilePhones", required = false) List<String> workMobilePhones,
-        @RequestParam(value = "personalPhones", required = false) List<String> personalPhones,
-        @Valid @ModelAttribute("contact") ContactDTO contactDTO,
+    public String saveContact(@Valid @ModelAttribute("contact") ContactFormDTO contactFormDTO,
         BindingResult bindingResult,
+        @RequestParam(value = "returnSearch", required = false) String searchQuery,
+        @RequestParam(value = "returnDept", required = false) Long departmentId,
+        @RequestParam(value = "returnPage", defaultValue = "0") int page,
         Model model,
         RedirectAttributes redirectAttributes
     ) {
         if (bindingResult.hasErrors()) {
             log.warn("Validation errors: {}", bindingResult.getAllErrors());
-            model.addAttribute("departments", departmentService.findAllForForms());
+            addFormAttributes(model, contactFormDTO);
+            preserveSearchParams(model, searchQuery, departmentId, page);
+            return "contacts/form";
+        }
+
+        if (isDuplicateContact(contactFormDTO, bindingResult)) {
+            addFormAttributes(model, contactFormDTO);
+            preserveSearchParams(model, searchQuery, departmentId, page);
             return "contacts/form";
         }
 
         try {
-            // Устанавливаем телефоны из параметров
-            contactDTO.setWorkPhones(workPhones != null ? workPhones : List.of());
-            contactDTO.setWorkMobilePhones(workMobilePhones != null ? workMobilePhones : List.of());
-            contactDTO.setPersonalPhones(personalPhones != null ? personalPhones : List.of());
-
-            // Проверка дубликатов только для новых контактов
-            if (contactDTO.getId() == null &&
-                contactService.existsByFullNameAndPosition(
-                    contactDTO.getFullName(), contactDTO.getPosition())) {
-                bindingResult.rejectValue("fullName", "duplicate",
-                    "Контакт с таким ФИО и должностью уже существует");
-                model.addAttribute("departments", departmentService.findAllForForms());
-                return "contacts/form";
-            }
-
-            ContactDTO savedContact = contactService.save(contactDTO);
-
-            String message = contactDTO.getId() == null ?
+            contactService.save(contactFormDTO);
+            String message = contactFormDTO.getId() == null ?
                 "Контакт успешно создан" : "Контакт успешно обновлен";
             redirectAttributes.addFlashAttribute("successMessage", message);
-
-            return "redirect:/contacts";
+            return buildRedirectUrl(searchQuery, departmentId, page);
         } catch (Exception e) {
             log.error("Error saving contact", e);
             model.addAttribute("errorMessage", "Ошибка при сохранении контакта: " + e.getMessage());
-            model.addAttribute("departments", departmentService.findAllForForms());
+            addFormAttributes(model, contactFormDTO);
+            preserveSearchParams(model, searchQuery, departmentId, page);
             return "contacts/form";
         }
     }
 
+    private boolean isDuplicateContact(ContactFormDTO contactFormDTO, BindingResult bindingResult) {
+        if (contactFormDTO.getId() == null &&
+            contactService.existsByFullNameAndPosition(contactFormDTO.getFullName(), contactFormDTO.getPosition())) {
+            bindingResult.rejectValue("fullName", "duplicate",
+                "Контакт с таким ФИО и должностью уже существует");
+            return true;
+        }
+        return false;
+    }
+
     @PostMapping("/delete/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public String deleteContact(@PathVariable Long id,
-                                RedirectAttributes redirectAttributes) {
+        @RequestParam(value = "search", required = false) String searchQuery,
+        @RequestParam(value = "dept", required = false) Long departmentId,
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        RedirectAttributes redirectAttributes) {
         try {
             contactService.deleteById(id);
             redirectAttributes.addFlashAttribute("successMessage", "Контакт успешно удален");
@@ -135,18 +195,22 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контакта: " + e.getMessage());
         }
-        return "redirect:/contacts";
+        return buildRedirectUrl(searchQuery, departmentId, page);
     }
 
     @PostMapping("/delete")
+    @PreAuthorize("hasRole('ADMIN')")
     public String deleteMultipleContacts(
         @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
+        @RequestParam(value = "search", required = false) String searchQuery,
+        @RequestParam(value = "dept", required = false) Long departmentId,
+        @RequestParam(value = "page", defaultValue = "0") int page,
         RedirectAttributes redirectAttributes) {
         try {
             if (contactIds == null || contactIds.isEmpty()) {
                 redirectAttributes.addFlashAttribute("errorMessage",
                     "Не выбраны контакты для удаления");
-                return "redirect:/contacts";
+                return buildRedirectUrl(searchQuery, departmentId, page);
             }
 
             contactService.deleteAllById(contactIds);
@@ -157,7 +221,34 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контактов: " + e.getMessage());
         }
-        return "redirect:/contacts";
+        return buildRedirectUrl(searchQuery, departmentId, page);
+    }
+
+    private String buildRedirectUrl(String searchQuery, Long departmentId, Integer page) {
+        StringBuilder url = new StringBuilder("redirect:/contacts");
+        boolean hasParams = false;
+
+        if (searchQuery != null && !searchQuery.trim().isEmpty()) {
+            url.append("?search=").append(URLEncoder.encode(searchQuery, StandardCharsets.UTF_8));
+            hasParams = true;
+        }
+
+        if (departmentId != null) {
+            url.append(hasParams ? "&" : "?").append("dept=").append(departmentId);
+            hasParams = true;
+        }
+
+        if (page != null && page > 0) {
+            url.append(hasParams ? "&" : "?").append("page=").append(page);
+        }
+
+        return url.toString();
+    }
+
+    private void preserveSearchParams(Model model, String searchQuery, Long departmentId, Integer page) {
+        model.addAttribute("returnSearch", searchQuery);
+        model.addAttribute("returnDept", departmentId);
+        model.addAttribute("returnPage", page);
     }
 
 }

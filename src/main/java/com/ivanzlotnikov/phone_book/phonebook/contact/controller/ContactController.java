@@ -43,6 +43,9 @@ public class ContactController {
     private final ContactService contactService;
     private final DepartmentService departmentService;
     private final ContactMapper contactMapper;
+    private final ContactValidator contactValidator;
+    private final ContactRedirectBuilder redirectBuilder;
+
 
     @GetMapping
     public String listContacts(@RequestParam(value = "dept", required = false) Long departmentId,
@@ -67,12 +70,14 @@ public class ContactController {
         return PageRequest.of(normalizedPage, normalizedSize, Sort.by("fullName").ascending());
     }
 
-    private Page<ContactDTO> fetchContacts(Long departmentId, String searchQuery, Pageable pageable) {
+    private Page<ContactDTO> fetchContacts(Long departmentId, String searchQuery,
+        Pageable pageable) {
         boolean hasSearchQuery = searchQuery != null && !searchQuery.trim().isEmpty();
         boolean hasDepartment = departmentId != null;
 
         if (hasSearchQuery && hasDepartment) {
-            return contactService.searchByNameAndDepartment(searchQuery.trim(), departmentId, pageable);
+            return contactService.searchByNameAndDepartment(searchQuery.trim(), departmentId,
+                pageable);
         } else if (hasSearchQuery) {
             return contactService.searchByName(searchQuery.trim(), pageable);
         } else if (hasDepartment) {
@@ -94,7 +99,8 @@ public class ContactController {
         model.addAttribute("totalElements", page.getTotalElements());
     }
 
-    private void addContactAttributes(Model model, Page<ContactDTO> contactsPage, List<DepartmentDTO> departments) {
+    private void addContactAttributes(Model model, Page<ContactDTO> contactsPage,
+        List<DepartmentDTO> departments) {
         model.addAttribute("contactsPage", contactsPage);
         model.addAttribute("contacts", contactsPage.getContent());
         model.addAttribute("departments", departments);
@@ -112,19 +118,19 @@ public class ContactController {
     @GetMapping("/edit/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public String editContactForm(@PathVariable Long id,
-                                   @RequestParam(value = "search", required = false) String searchQuery,
-                                   @RequestParam(value = "dept", required = false) Long departmentId,
-                                   @RequestParam(value = "page", defaultValue = "0") int page,
-                                   Model model) {
+        @RequestParam(value = "search", required = false) String searchQuery,
+        @RequestParam(value = "dept", required = false) Long departmentId,
+        @RequestParam(value = "page", defaultValue = "0") int page,
+        Model model) {
         ContactDTO contactDTO = contactService.findById(id);
         ContactFormDTO formDTO = contactMapper.toFormDTO(contactDTO);
         addFormAttributes(model, formDTO);
-        
+
         // Сохраняем параметры поиска для возврата
         model.addAttribute("returnSearch", searchQuery);
         model.addAttribute("returnDept", departmentId);
         model.addAttribute("returnPage", page);
-        
+
         return "contacts/form";
     }
 
@@ -144,40 +150,39 @@ public class ContactController {
     ) {
         if (bindingResult.hasErrors()) {
             log.warn("Validation errors: {}", bindingResult.getAllErrors());
-            addFormAttributes(model, contactFormDTO);
-            preserveSearchParams(model, searchQuery, departmentId, page);
-            return "contacts/form";
+            return handleValidationError(contactFormDTO, searchQuery, departmentId, page, model);
         }
-
-        if (isDuplicateContact(contactFormDTO, bindingResult)) {
-            addFormAttributes(model, contactFormDTO);
-            preserveSearchParams(model, searchQuery, departmentId, page);
-            return "contacts/form";
+        if (contactValidator.isDuplicate(contactFormDTO, bindingResult)) {
+            return handleValidationError(contactFormDTO, searchQuery, departmentId, page, model);
         }
+        return saveContactAndRedirect(contactFormDTO, searchQuery, departmentId, page,
+            redirectAttributes);
+    }
 
+    private String handleValidationError(ContactFormDTO contactFormDTO,
+        String searchQuery,
+        Long departmentId,
+        int page,
+        Model model) {
+        addFormAttributes(model, contactFormDTO);
+        preserveSearchParams(model, searchQuery, departmentId, page);
+        return "contacts/form";
+    }
+
+    private String saveContactAndRedirect(@Valid ContactFormDTO contactFormDTO,
+        String searchQuery,
+        Long departmentId,
+        int page,
+        RedirectAttributes redirectAttributes) {
         try {
             contactService.save(contactFormDTO);
             String message = contactFormDTO.getId() == null ?
                 "Контакт успешно создан" : "Контакт успешно обновлен";
             redirectAttributes.addFlashAttribute("successMessage", message);
-            return buildRedirectUrl(searchQuery, departmentId, page);
+            return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
         } catch (Exception e) {
-            log.error("Error saving contact", e);
-            model.addAttribute("errorMessage", "Ошибка при сохранении контакта: " + e.getMessage());
-            addFormAttributes(model, contactFormDTO);
-            preserveSearchParams(model, searchQuery, departmentId, page);
-            return "contacts/form";
+            throw new RuntimeException("Ошибка при сохранении контакта", e);
         }
-    }
-
-    private boolean isDuplicateContact(ContactFormDTO contactFormDTO, BindingResult bindingResult) {
-        if (contactFormDTO.getId() == null &&
-            contactService.existsByFullNameAndPosition(contactFormDTO.getFullName(), contactFormDTO.getPosition())) {
-            bindingResult.rejectValue("fullName", "duplicate",
-                "Контакт с таким ФИО и должностью уже существует");
-            return true;
-        }
-        return false;
     }
 
     @PostMapping("/delete/{id}")
@@ -195,7 +200,7 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контакта: " + e.getMessage());
         }
-        return buildRedirectUrl(searchQuery, departmentId, page);
+        return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
     }
 
     @PostMapping("/delete")
@@ -210,7 +215,7 @@ public class ContactController {
             if (contactIds == null || contactIds.isEmpty()) {
                 redirectAttributes.addFlashAttribute("errorMessage",
                     "Не выбраны контакты для удаления");
-                return buildRedirectUrl(searchQuery, departmentId, page);
+                return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
             }
 
             contactService.deleteAllById(contactIds);
@@ -221,31 +226,14 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контактов: " + e.getMessage());
         }
-        return buildRedirectUrl(searchQuery, departmentId, page);
+        return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
     }
 
-    private String buildRedirectUrl(String searchQuery, Long departmentId, Integer page) {
-        StringBuilder url = new StringBuilder("redirect:/contacts");
-        boolean hasParams = false;
 
-        if (searchQuery != null && !searchQuery.trim().isEmpty()) {
-            url.append("?search=").append(URLEncoder.encode(searchQuery, StandardCharsets.UTF_8));
-            hasParams = true;
-        }
-
-        if (departmentId != null) {
-            url.append(hasParams ? "&" : "?").append("dept=").append(departmentId);
-            hasParams = true;
-        }
-
-        if (page != null && page > 0) {
-            url.append(hasParams ? "&" : "?").append("page=").append(page);
-        }
-
-        return url.toString();
-    }
-
-    private void preserveSearchParams(Model model, String searchQuery, Long departmentId, Integer page) {
+    private void preserveSearchParams(Model model,
+        String searchQuery,
+        Long departmentId,
+        Integer page) {
         model.addAttribute("returnSearch", searchQuery);
         model.addAttribute("returnDept", departmentId);
         model.addAttribute("returnPage", page);

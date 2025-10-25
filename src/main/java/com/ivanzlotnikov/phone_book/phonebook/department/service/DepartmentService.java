@@ -33,11 +33,7 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
         return departmentRepository.findAllWithContactCount().stream()
-            .map((DepartmentWithContactCountDTO agg) -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+            .map(this::mapWithContactCount)
             .toList();
     }
 
@@ -47,7 +43,12 @@ public class DepartmentService {
             .map(departmentMapper::toDto);
     }
 
-    // Сохранить подразделение
+    @Transactional(readOnly = true)
+    public Department findEntityById(Long id) {
+        return departmentRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Department not found with id: " + id));
+    }
+
     public DepartmentDTO save(DepartmentDTO departmentDTO) {
         Department department;
         if (departmentDTO.getId() != null) {
@@ -74,7 +75,6 @@ public class DepartmentService {
         return departmentMapper.toDto(savedDepartment);
     }
 
-    // Удалить подразделение
     public void deleteById(Long id) {
         Department department = departmentRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
@@ -94,20 +94,9 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findRootDepartments() {
-        // Решение N+1: используем JOIN вместо отдельных запросов
         return departmentRepository.findRootDepartmentsWithContactCount().stream()
-            .map(agg -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+            .map(this::mapWithContactCount)
             .toList();
-    }
-
-    private DepartmentDTO toDtoWithContactCount(Department department) {
-        DepartmentDTO dto = departmentMapper.toDto(department);
-        dto.setContactCount((int) contactRepository.countByDepartmentId(department.getId()));
-        return dto;
     }
 
     @Transactional(readOnly = true)
@@ -119,26 +108,24 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public List<Department> getDepartmentsHierarchy(Long departmentId) {
-        // Решение N+1: загружаем все департаменты одним запросом и строим иерархию в памяти
         Department department = departmentRepository.findById(departmentId)
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
 
-        // Загружаем все департаменты одним запросом
         List<Department> allDepartments = departmentRepository.findAllWithParent();
-        
-        // Создаем Map для быстрого поиска детей по parent_id
+
         Map<Long, List<Department>> childrenMap = allDepartments.stream()
             .filter(d -> d.getParentDepartment() != null)
             .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
 
-        // Собираем иерархию в памяти
         List<Department> result = new ArrayList<>();
         collectChildrenFromMap(department.getId(), childrenMap, result, MAX_HIERARCHY_DEPTH);
         return result;
     }
 
-    private void collectChildrenFromMap(Long parentId, Map<Long, List<Department>> childrenMap, 
-                                        List<Department> result, int maxDepth) {
+    private void collectChildrenFromMap(Long parentId,
+        Map<Long, List<Department>> childrenMap,
+        List<Department> result,
+        int maxDepth) {
         if (maxDepth <= 0) {
             log.warn("Max depth reached for department hierarchy starting from {}", parentId);
             return;
@@ -153,28 +140,24 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public List<DepartmentDTO> getDepartmentTree() {
-        // Решение N+1: загружаем все департаменты одним запросом
         List<Department> allDepartments = departmentRepository.findAllWithParent();
-        
-        // Создаем Map для быстрого поиска детей
+
         Map<Long, List<Department>> childrenMap = allDepartments.stream()
             .filter(d -> d.getParentDepartment() != null)
             .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
-        
-        // Находим корневые департаменты
+
         List<Department> rootDepartments = allDepartments.stream()
             .filter(d -> d.getParentDepartment() == null)
             .toList();
-        
-        // Строим дерево для каждого корневого департамента
+
         return rootDepartments.stream()
             .map(dept -> buildDepartmentTreeFromMap(dept, childrenMap, MAX_TREE_DEPTH))
             .toList();
     }
 
-    private DepartmentDTO buildDepartmentTreeFromMap(Department department, 
-                                                      Map<Long, List<Department>> childrenMap, 
-                                                      int maxDepth) {
+    private DepartmentDTO buildDepartmentTreeFromMap(Department department,
+        Map<Long, List<Department>> childrenMap,
+        int maxDepth) {
         DepartmentDTO dto = departmentMapper.toDto(department);
         if (maxDepth > 0) {
             List<Department> children = childrenMap.getOrDefault(department.getId(), List.of());
@@ -187,13 +170,8 @@ public class DepartmentService {
 
     @Transactional(readOnly = true)
     public List<DepartmentDTO> searchByName(String name) {
-        // Решение N+1: используем JOIN вместо отдельных запросов
         return departmentRepository.findByNameWithContactCount(name.trim()).stream()
-            .map(agg -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+            .map(this::mapWithContactCount)
             .toList();
     }
 
@@ -212,6 +190,12 @@ public class DepartmentService {
         return departmentRepository.findAll().stream()
             .map(departmentMapper::toDto)
             .toList();
+    }
+
+    private DepartmentDTO mapWithContactCount(DepartmentWithContactCountDTO agg) {
+        DepartmentDTO dto = departmentMapper.toDto(agg.department());
+        dto.setContactCount((int) agg.contactCount());
+        return dto;
     }
 }
 

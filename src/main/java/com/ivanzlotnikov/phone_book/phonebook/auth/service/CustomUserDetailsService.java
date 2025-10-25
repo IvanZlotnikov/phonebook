@@ -1,5 +1,6 @@
 package com.ivanzlotnikov.phone_book.phonebook.auth.service;
 
+import com.ivanzlotnikov.phone_book.phonebook.auth.entity.User;
 import com.ivanzlotnikov.phone_book.phonebook.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,7 +18,8 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return userRepository.findByUsername(username)
+        User user = userRepository.findByUsername(username)
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+        return new UserDetailsAdapter(user);
     }
 }

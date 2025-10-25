@@ -3,6 +3,7 @@ package com.ivanzlotnikov.phone_book.phonebook.auth.service;
 import com.ivanzlotnikov.phone_book.phonebook.auth.entity.User;
 import com.ivanzlotnikov.phone_book.phonebook.auth.repository.UserRepository;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
+import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -32,24 +33,40 @@ public class UserService {
 
     public User save(User user) {
         if (user.getId() != null) {
-            User existingUser = userRepository.findById(user.getId())
-                .orElseThrow(() -> new EntityNotFoundException("User not found"));
-
-            String rawPassword = user.getPassword();
-            if (rawPassword != null && !rawPassword.isEmpty() &&
-                passwordEncoder.matches(rawPassword, existingUser.getPassword())) {
-                // Пароль изменился - кодируем новый
-                user.setPassword(passwordEncoder.encode(rawPassword));
-            } else {
-                // Пароль не изменился - сохраняем старый
-                user.setPassword(existingUser.getPassword());
-            }
+            return updateExistingUser(user);
         } else {
-            // Новый пользователь - всегда кодируем пароль
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            return createNewUser(user);
         }
+    }
+
+    public User createNewUser(User user) {
+        user.setPassword(encodePassword(user.getPassword()));
         return userRepository.save(user);
     }
+
+    public User updateExistingUser(User user) {
+        User existingUser = userRepository.findById(user.getId())
+            .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        user.setPassword(handlePasswordUpdate(user.getPassword(), existingUser.getPassword()));
+        return userRepository.save(user);
+    }
+
+    private String handlePasswordUpdate(String newPassword, String existingPassword) {
+        if (isPasswordChanged(newPassword, existingPassword)) {
+            return encodePassword(newPassword);
+        }
+        return existingPassword;
+    }
+
+    private boolean isPasswordChanged(String newPassword, String existingPassword) {
+        return newPassword != null && !newPassword.isEmpty()
+               && !passwordEncoder.matches(newPassword, existingPassword);
+    }
+
+    private String encodePassword(String rawPassword) {
+        return passwordEncoder.encode(rawPassword);
+    }
+
 
     public void delete(Long id) {
         if (!userRepository.existsById(id)) {

@@ -46,6 +46,12 @@ public class ContactService {
     public ContactDTO save(ContactFormDTO contactDTO) {
         log.info("Saving contact with id: {}", contactDTO.getId());
         Contact contact = contactMapper.toEntity(contactDTO);
+
+        if (contactDTO.getDepartmentId() != null) {
+            Department department = departmentService.findEntityById(contactDTO.getDepartmentId());
+            contact.setDepartment(department);
+        }
+
         Contact savedContact = contactRepository.save(contact);
         return contactMapper.toDto(savedContact);
     }

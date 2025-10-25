@@ -38,11 +38,6 @@ public class ContactMapper {
         entity.setFullName(formDTO.getFullName());
         entity.setPosition(formDTO.getPosition());
 
-        if (formDTO.getDepartmentId() != null) {
-            Department department = new Department();
-            department.setId(formDTO.getDepartmentId());
-            entity.setDepartment(department);
-        }
         entity.setWorkPhones(formDTO.getWorkPhones());
         entity.setWorkMobilePhones(formDTO.getWorkMobilePhones());
         entity.setPersonalPhones(formDTO.getPersonalPhones());

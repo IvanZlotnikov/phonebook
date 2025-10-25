@@ -17,13 +17,15 @@ import lombok.Setter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+
 @Entity
 @Table(name = "users")
-@Getter @Setter
+@Getter
+@Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @AllArgsConstructor
 @NoArgsConstructor
-public class User implements UserDetails {
+public class User {
 
     @EqualsAndHashCode.Include
     @Id
@@ -31,36 +33,15 @@ public class User implements UserDetails {
     private Long id;
 
     @NotBlank
-    @Column(nullable = false, unique = true,length = 50)
+    @Column(nullable = false, unique = true, length = 50)
     private String username;
 
     @NotBlank
-    @Column(nullable = false,length = 100)
+    @Column(nullable = false, length = 100)
     private String password;
 
     @Column(nullable = false)
     private String role = "ROLE_USER";
 
     private boolean enabled = true;
-
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority(role));
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return enabled;
-    }
 }

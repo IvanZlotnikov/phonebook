@@ -7,6 +7,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * DTO для отображения контакта в представлении.
+ * Используется для передачи данных о контакте с департаментом из сервисного слоя в контроллер.
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

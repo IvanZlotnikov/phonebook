@@ -7,25 +7,63 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
+/**
+ * Репозиторий для работы с сущностью {@link Department}.
+ * Предоставляет методы для работы с иерархической структурой департаментов,
+ * включая рекурсивные запросы и агрегацию данных.
+ */
+@Repository
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
-    // Корневые подразделения
+    /**
+     * Находит все корневые департаменты (без родительского департамента).
+     *
+     * @return список корневых департаментов
+     */
     List<Department> findByParentDepartmentIsNull();
 
-    // Найти прямых потомков определенного подразделения
+    /**
+     * Находит прямых потомков указанного департамента.
+     *
+     * @param parentId идентификатор родительского департамента
+     * @return список дочерних департаментов
+     */
     List<Department> findByParentDepartmentId(Long parentId);
 
-    // Найти подразделение по имени
+    /**
+     * Находит департамент по точному названию.
+     *
+     * @param name название департамента
+     * @return Optional с департаментом или пустой Optional
+     */
     Optional<Department> findByName(String name);
 
-    //Проверить существование подразделения по имени
+    /**
+     * Проверяет существование департамента с указанным названием.
+     *
+     * @param name название департамента
+     * @return true, если департамент существует, иначе false
+     */
     boolean existsByName(String name);
 
-    //Найти все подразделения с определенным родителем
+    /**
+     * Находит все департаменты с указанным родительским департаментом.
+     *
+     * @param parent родительский департамент
+     * @return список дочерних департаментов
+     */
     List<Department> findByParentDepartment(Department parent);
 
-    //Рекурсивный поиск всех потомков(для postgresql с СТЕ)
+    /**
+     * Рекурсивно находит все поддепартаменты указанного департамента.
+     * Использует Common Table Expression (CTE) для PostgreSQL.
+     * Не включает сам департамент в результат.
+     *
+     * @param departmentId идентификатор департамента
+     * @return список всех поддепартаментов на всех уровнях вложенности
+     */
     @Query(value = """
             WITH RECURSIVE sub_departments AS (
                 SELECT id, name, parent_department_id
@@ -40,15 +78,30 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
         """, nativeQuery = true)
     List<Department> findAllSubDepartments(@Param("departmentId") Long departmentId);
 
-    //Поиск по имени без учета регистра
+    /**
+     * Выполняет поиск департаментов по части названия без учета регистра.
+     *
+     * @param name часть названия для поиска
+     * @return список найденных департаментов
+     */
     List<Department> findByNameContainingIgnoreCase(String name);
 
-    // Список подразделений с количеством контактов
+    /**
+     * Получает все департаменты с количеством контактов в каждом.
+     * Использует агрегацию для подсчета контактов и предотвращения N+1 проблемы.
+     *
+     * @return список DTO с департаментами и количеством контактов
+     */
     @Query("SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d,COUNT(c.id)) " +
            "FROM Department d LEFT JOIN d.contacts c GROUP BY d.id")
     List<DepartmentWithContactCountDTO> findAllWithContactCount();
 
-    // Корневые подразделения с количеством контактов (решение N+1)
+    /**
+     * Получает корневые департаменты с количеством контактов.
+     * Оптимизированный запрос для предотвращения N+1 проблемы.
+     *
+     * @return список DTO с корневыми департаментами и количеством контактов
+     */
     @Query("""
         SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d, COUNT(c.id))
         FROM Department d
@@ -58,7 +111,13 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
         """)
     List<DepartmentWithContactCountDTO> findRootDepartmentsWithContactCount();
 
-    // Поиск по имени с количеством контактов (решение N+1)
+    /**
+     * Выполняет поиск департаментов по названию с подсчетом контактов.
+     * Оптимизированный запрос для предотвращения N+1 проблемы.
+     *
+     * @param name часть названия для поиска (без учета регистра)
+     * @return список DTO с найденными департаментами и количеством контактов
+     */
     @Query("""
         SELECT new com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithContactCountDTO(d, COUNT(c.id))
         FROM Department d
@@ -68,7 +127,13 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
         """)
     List<DepartmentWithContactCountDTO> findByNameWithContactCount(@Param("name") String name);
 
-    // Загрузить все департаменты с родителями одним запросом (для построения иерархии в памяти)
+    /**
+     * Загружает все департаменты с родительскими департаментами одним запросом.
+     * Используется для построения иерархии департаментов в памяти.
+     * Предотвращает N+1 проблему при работе с иерархией.
+     *
+     * @return список всех департаментов с загруженными родителями
+     */
     @Query("SELECT d FROM Department d LEFT JOIN FETCH d.parentDepartment")
     List<Department> findAllWithParent();
 }

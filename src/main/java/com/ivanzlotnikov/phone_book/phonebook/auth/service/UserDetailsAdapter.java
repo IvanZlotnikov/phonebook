@@ -8,11 +8,20 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+/**
+ * Адаптер для преобразования сущности User в UserDetails Spring Security.
+ * Реализует интерфейс UserDetails для интеграции пользовательской модели с системой безопасности.
+ */
 @RequiredArgsConstructor
 public class UserDetailsAdapter implements UserDetails {
 
     private final User user;
 
+    /**
+     * Возвращает права доступа пользователя.
+     *
+     * @return коллекцию прав доступа
+     */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.singletonList(new SimpleGrantedAuthority(user.getRole()));

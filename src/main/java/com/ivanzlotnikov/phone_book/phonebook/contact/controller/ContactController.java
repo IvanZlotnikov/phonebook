@@ -2,14 +2,13 @@ package com.ivanzlotnikov.phone_book.phonebook.contact.controller;
 
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactDTO;
 import com.ivanzlotnikov.phone_book.phonebook.contact.dto.ContactFormDTO;
+import com.ivanzlotnikov.phone_book.phonebook.contact.dto.SearchContext;
 import com.ivanzlotnikov.phone_book.phonebook.contact.mapper.ContactMapper;
 import com.ivanzlotnikov.phone_book.phonebook.contact.service.ContactService;
 import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
 import jakarta.validation.Valid;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +29,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+/**
+ * Контроллер для управления контактами через веб-интерфейс.
+ * Обрабатывает HTTP-запросы для операций CRUD, поиска и фильтрации контактов.
+ * Использует Thymeleaf для рендеринга представлений.
+ */
 @Slf4j
 @Controller
 @RequestMapping("/contacts")
@@ -46,16 +50,27 @@ public class ContactController {
     private final ContactValidator contactValidator;
     private final ContactRedirectBuilder redirectBuilder;
 
-
+    /**
+     * Отображает список всех контактов с пагинацией, поиском и фильтрацией.
+     * Поддерживает комбинированный поиск по имени и департаменту.
+     *
+     * @param departmentId необязательный параметр для фильтрации по департаменту
+     * @param searchQuery необязательный параметр для поиска по имени
+     * @param page номер страницы (по умолчанию 0)
+     * @param size размер страницы (по умолчанию 20)
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона для отображения списка контактов
+     */
     @GetMapping
     public String listContacts(@RequestParam(value = "dept", required = false) Long departmentId,
-        @RequestParam(value = "search", required = false) String searchQuery,
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        @RequestParam(value = "size", defaultValue = "20") int size,
-        Model model) {
+                               @RequestParam(value = "search", required = false) String searchQuery,
+                               @RequestParam(value = "page", defaultValue = "0") int page,
+                               @RequestParam(value = "size", defaultValue = "20") int size,
+                               Model model) {
 
+        SearchContext searchContext = new SearchContext(searchQuery, departmentId, page);
         Pageable pageable = createPageable(page, size);
-        Page<ContactDTO> contactsPage = fetchContacts(departmentId, searchQuery, pageable);
+        Page<ContactDTO> contactsPage = fetchContacts(searchContext, pageable);
         List<DepartmentDTO> allDepartments = departmentService.findAll();
 
         addPaginationAttributes(model, contactsPage, pageable.getPageNumber());
@@ -70,18 +85,16 @@ public class ContactController {
         return PageRequest.of(normalizedPage, normalizedSize, Sort.by("fullName").ascending());
     }
 
-    private Page<ContactDTO> fetchContacts(Long departmentId, String searchQuery,
-        Pageable pageable) {
-        boolean hasSearchQuery = searchQuery != null && !searchQuery.trim().isEmpty();
-        boolean hasDepartment = departmentId != null;
-
-        if (hasSearchQuery && hasDepartment) {
-            return contactService.searchByNameAndDepartment(searchQuery.trim(), departmentId,
+    private Page<ContactDTO> fetchContacts(SearchContext searchContext, Pageable pageable) {
+        if (searchContext.hasSearchQuery() && searchContext.hasDepartment()) {
+            return contactService.searchByNameAndDepartment(
+                searchContext.getNormalizedSearchQuery(),
+                searchContext.getDepartmentId(),
                 pageable);
-        } else if (hasSearchQuery) {
-            return contactService.searchByName(searchQuery.trim(), pageable);
-        } else if (hasDepartment) {
-            return contactService.findByDepartmentHierarchy(departmentId, pageable);
+        } else if (searchContext.hasSearchQuery()) {
+            return contactService.searchByName(searchContext.getNormalizedSearchQuery(), pageable);
+        } else if (searchContext.hasDepartment()) {
+            return contactService.findByDepartmentHierarchy(searchContext.getDepartmentId(), pageable);
         }
         return contactService.findAll(pageable);
     }
@@ -100,7 +113,7 @@ public class ContactController {
     }
 
     private void addContactAttributes(Model model, Page<ContactDTO> contactsPage,
-        List<DepartmentDTO> departments) {
+                                      List<DepartmentDTO> departments) {
         model.addAttribute("contactsPage", contactsPage);
         model.addAttribute("contacts", contactsPage.getContent());
         model.addAttribute("departments", departments);
@@ -108,6 +121,12 @@ public class ContactController {
             .collect(Collectors.toMap(DepartmentDTO::getId, DepartmentDTO::getName)));
     }
 
+    /**
+     * Отображает форму создания нового контакта.
+     *
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона формы создания контакта
+     */
     @GetMapping("/new")
     @PreAuthorize("hasRole('ADMIN')")
     public String newContactForm(Model model) {
@@ -115,21 +134,26 @@ public class ContactController {
         return "contacts/form";
     }
 
+    /**
+     * Отображает форму редактирования существующего контакта.
+     *
+     * @param id идентификатор контакта для редактирования
+     * @param model модель для передачи данных в представление
+     * @return имя шаблона формы редактирования
+     */
     @GetMapping("/edit/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public String editContactForm(@PathVariable Long id,
-        @RequestParam(value = "search", required = false) String searchQuery,
-        @RequestParam(value = "dept", required = false) Long departmentId,
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        Model model) {
+                                  @RequestParam(value = "search", required = false) String searchQuery,
+                                  @RequestParam(value = "dept", required = false) Long departmentId,
+                                  @RequestParam(value = "page", defaultValue = "0") int page,
+                                  Model model) {
         ContactDTO contactDTO = contactService.findById(id);
         ContactFormDTO formDTO = contactMapper.toFormDTO(contactDTO);
         addFormAttributes(model, formDTO);
 
-        // Сохраняем параметры поиска для возврата
-        model.addAttribute("returnSearch", searchQuery);
-        model.addAttribute("returnDept", departmentId);
-        model.addAttribute("returnPage", page);
+        SearchContext searchContext = new SearchContext(searchQuery, departmentId, page);
+        addSearchContextToModel(model, searchContext);
 
         return "contacts/form";
     }
@@ -139,59 +163,77 @@ public class ContactController {
         model.addAttribute("departments", departmentService.findAllForForms());
     }
 
+    /**
+     * Обрабатывает сохранение контакта (создание или обновление).
+     * Выполняет валидацию и проверку на дубликаты.
+     *
+     * @param contactFormDTO данные контакта из формы
+     * @param bindingResult результаты валидации
+     * @param searchQuery параметр для возврата к поиску
+     * @param departmentId параметр для возврата к фильтру
+     * @param page параметр для возврата к странице
+     * @param model модель для передачи данных
+     * @param redirectAttributes атрибуты для передачи сообщений после редиректа
+     * @return редирект на список контактов или возврат к форме при ошибках
+     */
     @PostMapping("/save")
     public String saveContact(@Valid @ModelAttribute("contact") ContactFormDTO contactFormDTO,
-        BindingResult bindingResult,
-        @RequestParam(value = "returnSearch", required = false) String searchQuery,
-        @RequestParam(value = "returnDept", required = false) Long departmentId,
-        @RequestParam(value = "returnPage", defaultValue = "0") int page,
-        Model model,
-        RedirectAttributes redirectAttributes
-    ) {
+                              BindingResult bindingResult,
+                              @RequestParam(value = "returnSearch", required = false) String searchQuery,
+                              @RequestParam(value = "returnDept", required = false) Long departmentId,
+                              @RequestParam(value = "returnPage", defaultValue = "0") int page,
+                              Model model,
+                              RedirectAttributes redirectAttributes) {
+        SearchContext searchContext = new SearchContext(searchQuery, departmentId, page);
+        
         if (bindingResult.hasErrors()) {
             log.warn("Validation errors: {}", bindingResult.getAllErrors());
-            return handleValidationError(contactFormDTO, searchQuery, departmentId, page, model);
+            return handleValidationError(contactFormDTO, searchContext, model);
         }
         if (contactValidator.isDuplicate(contactFormDTO, bindingResult)) {
-            return handleValidationError(contactFormDTO, searchQuery, departmentId, page, model);
+            return handleValidationError(contactFormDTO, searchContext, model);
         }
-        return saveContactAndRedirect(contactFormDTO, searchQuery, departmentId, page,
-            redirectAttributes);
+        return saveContactAndRedirect(contactFormDTO, searchContext, redirectAttributes);
     }
 
     private String handleValidationError(ContactFormDTO contactFormDTO,
-        String searchQuery,
-        Long departmentId,
-        int page,
-        Model model) {
+                                        SearchContext searchContext,
+                                        Model model) {
         addFormAttributes(model, contactFormDTO);
-        preserveSearchParams(model, searchQuery, departmentId, page);
+        addSearchContextToModel(model, searchContext);
         return "contacts/form";
     }
 
-    private String saveContactAndRedirect(@Valid ContactFormDTO contactFormDTO,
-        String searchQuery,
-        Long departmentId,
-        int page,
-        RedirectAttributes redirectAttributes) {
+    private String saveContactAndRedirect(ContactFormDTO contactFormDTO,
+                                          SearchContext searchContext,
+                                          RedirectAttributes redirectAttributes) {
         try {
             contactService.save(contactFormDTO);
             String message = contactFormDTO.getId() == null ?
                 "Контакт успешно создан" : "Контакт успешно обновлен";
             redirectAttributes.addFlashAttribute("successMessage", message);
-            return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
+            return buildRedirectUrl(searchContext);
         } catch (Exception e) {
             throw new RuntimeException("Ошибка при сохранении контакта", e);
         }
     }
 
+    /**
+     * Удаляет контакт по идентификатору.
+     *
+     * @param id идентификатор контакта для удаления
+     * @param redirectAttributes атрибуты для передачи сообщений
+     * @return редирект на список контактов
+     */
     @PostMapping("/delete/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public String deleteContact(@PathVariable Long id,
-        @RequestParam(value = "search", required = false) String searchQuery,
-        @RequestParam(value = "dept", required = false) Long departmentId,
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        RedirectAttributes redirectAttributes) {
+                                @RequestParam(value = "search", required = false) String searchQuery,
+                                @RequestParam(value = "dept", required = false) Long departmentId,
+                                @RequestParam(value = "page", defaultValue = "0") int page,
+                                RedirectAttributes redirectAttributes) {
+        SearchContext searchContext = new SearchContext(searchQuery, departmentId, page);
+        
         try {
             contactService.deleteById(id);
             redirectAttributes.addFlashAttribute("successMessage", "Контакт успешно удален");
@@ -200,22 +242,30 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контакта: " + e.getMessage());
         }
-        return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
+        return buildRedirectUrl(searchContext);
     }
 
+    /**
+     * Удаляет несколько контактов по списку идентификаторов.
+     *
+     * @param contactIds список идентификаторов контактов для удаления
+     * @param redirectAttributes атрибуты для передачи сообщений
+     * @return редирект на список контактов
+     */
     @PostMapping("/delete")
     @PreAuthorize("hasRole('ADMIN')")
-    public String deleteMultipleContacts(
-        @RequestParam(value = "contactIds", required = false) List<Long> contactIds,
-        @RequestParam(value = "search", required = false) String searchQuery,
-        @RequestParam(value = "dept", required = false) Long departmentId,
-        @RequestParam(value = "page", defaultValue = "0") int page,
-        RedirectAttributes redirectAttributes) {
+    public String deleteMultipleContacts(@RequestParam(value = "contactIds", required = false) List<Long> contactIds,
+                                         @RequestParam(value = "search", required = false) String searchQuery,
+                                         @RequestParam(value = "dept", required = false) Long departmentId,
+                                         @RequestParam(value = "page", defaultValue = "0") int page,
+                                         RedirectAttributes redirectAttributes) {
+        SearchContext searchContext = new SearchContext(searchQuery, departmentId, page);
+        
         try {
             if (contactIds == null || contactIds.isEmpty()) {
                 redirectAttributes.addFlashAttribute("errorMessage",
                     "Не выбраны контакты для удаления");
-                return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
+                return buildRedirectUrl(searchContext);
             }
 
             contactService.deleteAllById(contactIds);
@@ -226,17 +276,21 @@ public class ContactController {
             redirectAttributes.addFlashAttribute("errorMessage",
                 "Ошибка при удалении контактов: " + e.getMessage());
         }
-        return redirectBuilder.buildRedirectUrl(searchQuery, departmentId, page);
+        return buildRedirectUrl(searchContext);
     }
 
 
-    private void preserveSearchParams(Model model,
-        String searchQuery,
-        Long departmentId,
-        Integer page) {
-        model.addAttribute("returnSearch", searchQuery);
-        model.addAttribute("returnDept", departmentId);
-        model.addAttribute("returnPage", page);
+    private void addSearchContextToModel(Model model, SearchContext searchContext) {
+        model.addAttribute("returnSearch", searchContext.getSearchQuery());
+        model.addAttribute("returnDept", searchContext.getDepartmentId());
+        model.addAttribute("returnPage", searchContext.getPage());
+    }
+
+    private String buildRedirectUrl(SearchContext searchContext) {
+        return redirectBuilder.buildRedirectUrl(
+            searchContext.getSearchQuery(),
+            searchContext.getDepartmentId(),
+            searchContext.getPage());
     }
 
 }

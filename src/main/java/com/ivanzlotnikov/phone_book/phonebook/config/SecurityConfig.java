@@ -4,6 +4,7 @@ import com.ivanzlotnikov.phone_book.phonebook.auth.service.CustomUserDetailsServ
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
@@ -21,6 +22,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
  */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -33,7 +35,7 @@ public class SecurityConfig {
     };
     private static final String[] ADMIN_PATHS = {
         "/contacts/new", "/contacts/save", "/contacts/edit/**",
-        "/contacts/delete/**"
+        "/contacts/delete/**", "/users", "/users/**"
     };
     private static final String[] AUTH_PATHS = {
         "/contacts", "/contacts/**"

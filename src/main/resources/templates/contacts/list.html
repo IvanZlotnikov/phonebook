@@ -37,6 +37,9 @@
     </a>
 
     <div class="navbar-nav ms-auto">
+      <a th:href="@{/users}" class="btn btn-outline-light btn-sm me-2" sec:authorize="hasRole('ADMIN')">
+        <i class="fas fa-users-cog"></i> Пользователи
+      </a>
         <span class="navbar-text me-3" sec:authorize="isAuthenticated()">
           Вы вошли как: <span sec:authentication="name"></span>
         </span>

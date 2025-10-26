@@ -4,9 +4,19 @@ import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentDTO;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import org.springframework.stereotype.Component;
 
+/**
+ * Маппер для преобразования сущности Department в DTO.
+ * Выполняет конвертацию между слоями приложения.
+ */
 @Component
 public class DepartmentMapper {
 
+    /**
+     * Преобразует сущность Department в DTO.
+     *
+     * @param department сущность департамента
+     * @return DTO департамента или null
+     */
     public DepartmentDTO toDto(Department department) {
         if (department == null) {
             return null;

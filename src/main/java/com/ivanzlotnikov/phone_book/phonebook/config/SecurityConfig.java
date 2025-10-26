@@ -15,6 +15,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
+/**
+ * Конфигурация Spring Security.
+ * Настраивает аутентификацию, авторизацию и защиту от CSRF-атак.
+ */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
@@ -35,11 +39,23 @@ public class SecurityConfig {
         "/contacts", "/contacts/**"
     };
 
+    /**
+     * Создает кодировщик паролей BCrypt.
+     *
+     * @return экземпляр BCryptPasswordEncoder
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Настраивает цепочку фильтров безопасности.
+     *
+     * @param http объект конфигурации HTTP безопасности
+     * @return сконфигурированная цепочка фильтров безопасности
+     * @throws Exception в случае ошибки конфигурации
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -51,10 +67,20 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Настраивает защиту от CSRF-атак.
+     *
+     * @param csrf конфигуратор CSRF
+     */
     private void configureCsrf(CsrfConfigurer<HttpSecurity> csrf) {
         csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse());
     }
 
+    /**
+     * Настраивает правила авторизации для различных URL.
+     *
+     * @param authz менеджер авторизации запросов
+     */
     private void configureAuthorization(
         AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry authz) {
         authz
@@ -64,6 +90,11 @@ public class SecurityConfig {
             .anyRequest().authenticated();
     }
 
+    /**
+     * Настраивает форму входа в систему.
+     *
+     * @param form конфигуратор формы входа
+     */
     private void configureFormLogin(FormLoginConfigurer<HttpSecurity> form) {
         form
             .loginPage("/login")
@@ -73,6 +104,11 @@ public class SecurityConfig {
             .permitAll();
     }
 
+    /**
+     * Настраивает выход из системы.
+     *
+     * @param logout конфигуратор выхода
+     */
     private void configureLogout(LogoutConfigurer<HttpSecurity> logout) {
         logout
             .logoutUrl("/logout")

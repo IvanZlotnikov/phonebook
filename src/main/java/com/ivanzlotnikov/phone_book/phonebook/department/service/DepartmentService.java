@@ -7,6 +7,7 @@ import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import com.ivanzlotnikov.phone_book.phonebook.department.mapper.DepartmentMapper;
 import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
 import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
+import com.ivanzlotnikov.phone_book.phonebook.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Сервис для управления департаментами организации.
+ * Обрабатывает иерархическую структуру департаментов, включая операции
+ * с родительскими и дочерними подразделениями.
+ */
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -30,24 +36,50 @@ public class DepartmentService {
     private final ContactRepository contactRepository;
     private final DepartmentMapper departmentMapper;
 
+    /**
+     * Получает все департаменты с количеством контактов.
+     *
+     * @return список всех департаментов с подсчетом контактов
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
         return departmentRepository.findAllWithContactCount().stream()
-            .map((DepartmentWithContactCountDTO agg) -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+            .map(this::mapWithContactCount)
             .toList();
     }
 
+    /**
+     * Находит департамент по идентификатору.
+     *
+     * @param id идентификатор департамента
+     * @return Optional с DTO департамента или пустой Optional
+     */
     @Transactional(readOnly = true)
     public Optional<DepartmentDTO> findById(Long id) {
         return departmentRepository.findById(id)
             .map(departmentMapper::toDto);
     }
 
-    // Сохранить подразделение
+    /**
+     * Находит сущность департамента по идентификатору.
+     * Используется внутри сервисов для получения entity объекта.
+     *
+     * @param id идентификатор департамента
+     * @return сущность департамента
+     * @throws EntityNotFoundException если департамент не найден
+     */
+    @Transactional(readOnly = true)
+    public Department findEntityById(Long id) {
+        return departmentRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Department not found with id: " + id));
+    }
+
+    /**
+     * Сохраняет новый департамент или обновляет существующий.
+     *
+     * @param departmentDTO данные департамента
+     * @return сохраненный департамент в виде DTO
+     */
     public DepartmentDTO save(DepartmentDTO departmentDTO) {
         Department department;
         if (departmentDTO.getId() != null) {
@@ -57,7 +89,7 @@ public class DepartmentService {
         } else {
             department = new Department();
         }
-        department.setName(departmentDTO.getName().trim());
+        department.setName(StringUtils.trimSafely(departmentDTO.getName()));
         if (departmentDTO.getParentDepartmentId() != null) {
             Department parent = departmentRepository.findById(
                     departmentDTO.getParentDepartmentId())
@@ -74,7 +106,13 @@ public class DepartmentService {
         return departmentMapper.toDto(savedDepartment);
     }
 
-    // Удалить подразделение
+    /**
+     * Удаляет департамент по идентификатору.
+     * Проверяет наличие контактов и дочерних департаментов перед удалением.
+     *
+     * @param id идентификатор департамента
+     * @throws IllegalStateException если департамент содержит контакты или поддепартаменты
+     */
     public void deleteById(Long id) {
         Department department = departmentRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
@@ -92,24 +130,24 @@ public class DepartmentService {
         log.info("Department {} deleted successfully", id);
     }
 
+    /**
+     * Получает все корневые департаменты (без родительского департамента).
+     *
+     * @return список корневых департаментов с количеством контактов
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findRootDepartments() {
-        // Решение N+1: используем JOIN вместо отдельных запросов
         return departmentRepository.findRootDepartmentsWithContactCount().stream()
-            .map(agg -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+            .map(this::mapWithContactCount)
             .toList();
     }
 
-    private DepartmentDTO toDtoWithContactCount(Department department) {
-        DepartmentDTO dto = departmentMapper.toDto(department);
-        dto.setContactCount((int) contactRepository.countByDepartmentId(department.getId()));
-        return dto;
-    }
-
+    /**
+     * Находит прямых потомков (дочерние департаменты первого уровня) указанного департамента.
+     *
+     * @param parentId идентификатор родительского департамента
+     * @return список дочерних департаментов
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findDirectChildren(Long parentId) {
         return departmentRepository.findByParentDepartmentId(parentId).stream()
@@ -117,28 +155,33 @@ public class DepartmentService {
             .toList();
     }
 
+    /**
+     * Получает все поддепартаменты указанного департамента на всех уровнях вложенности.
+     * Использует рекурсивный обход иерархии с ограничением глубины.
+     *
+     * @param departmentId идентификатор родительского департамента
+     * @return список всех поддепартаментов
+     */
     @Transactional(readOnly = true)
     public List<Department> getDepartmentsHierarchy(Long departmentId) {
-        // Решение N+1: загружаем все департаменты одним запросом и строим иерархию в памяти
         Department department = departmentRepository.findById(departmentId)
             .orElseThrow(() -> new EntityNotFoundException("Department not found"));
 
-        // Загружаем все департаменты одним запросом
         List<Department> allDepartments = departmentRepository.findAllWithParent();
-        
-        // Создаем Map для быстрого поиска детей по parent_id
+
         Map<Long, List<Department>> childrenMap = allDepartments.stream()
             .filter(d -> d.getParentDepartment() != null)
             .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
 
-        // Собираем иерархию в памяти
         List<Department> result = new ArrayList<>();
         collectChildrenFromMap(department.getId(), childrenMap, result, MAX_HIERARCHY_DEPTH);
         return result;
     }
 
-    private void collectChildrenFromMap(Long parentId, Map<Long, List<Department>> childrenMap, 
-                                        List<Department> result, int maxDepth) {
+    private void collectChildrenFromMap(Long parentId,
+        Map<Long, List<Department>> childrenMap,
+        List<Department> result,
+        int maxDepth) {
         if (maxDepth <= 0) {
             log.warn("Max depth reached for department hierarchy starting from {}", parentId);
             return;
@@ -151,30 +194,32 @@ public class DepartmentService {
         }
     }
 
+    /**
+     * Строит полное иерархическое дерево департаментов.
+     * Возвращает корневые департаменты со всеми вложенными поддепартаментами.
+     *
+     * @return список корневых департаментов с вложенной иерархией
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> getDepartmentTree() {
-        // Решение N+1: загружаем все департаменты одним запросом
         List<Department> allDepartments = departmentRepository.findAllWithParent();
-        
-        // Создаем Map для быстрого поиска детей
+
         Map<Long, List<Department>> childrenMap = allDepartments.stream()
             .filter(d -> d.getParentDepartment() != null)
             .collect(Collectors.groupingBy(d -> d.getParentDepartment().getId()));
-        
-        // Находим корневые департаменты
+
         List<Department> rootDepartments = allDepartments.stream()
             .filter(d -> d.getParentDepartment() == null)
             .toList();
-        
-        // Строим дерево для каждого корневого департамента
+
         return rootDepartments.stream()
             .map(dept -> buildDepartmentTreeFromMap(dept, childrenMap, MAX_TREE_DEPTH))
             .toList();
     }
 
-    private DepartmentDTO buildDepartmentTreeFromMap(Department department, 
-                                                      Map<Long, List<Department>> childrenMap, 
-                                                      int maxDepth) {
+    private DepartmentDTO buildDepartmentTreeFromMap(Department department,
+        Map<Long, List<Department>> childrenMap,
+        int maxDepth) {
         DepartmentDTO dto = departmentMapper.toDto(department);
         if (maxDepth > 0) {
             List<Department> children = childrenMap.getOrDefault(department.getId(), List.of());
@@ -185,33 +230,58 @@ public class DepartmentService {
         return dto;
     }
 
+    /**
+     * Выполняет поиск департаментов по названию с подсчетом контактов.
+     *
+     * @param name часть названия для поиска
+     * @return список найденных департаментов с количеством контактов
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> searchByName(String name) {
-        // Решение N+1: используем JOIN вместо отдельных запросов
-        return departmentRepository.findByNameWithContactCount(name.trim()).stream()
-            .map(agg -> {
-                DepartmentDTO dto = departmentMapper.toDto(agg.department());
-                dto.setContactCount((int) agg.contactCount());
-                return dto;
-            })
+        return departmentRepository.findByNameWithContactCount(StringUtils.trimSafely(name)).stream()
+            .map(this::mapWithContactCount)
             .toList();
     }
 
+    /**
+     * Проверяет существование департамента с указанным названием.
+     * Используется для предотвращения дублирования названий.
+     *
+     * @param name название департамента
+     * @return true, если департамент с таким названием существует
+     */
     @Transactional(readOnly = true)
     public boolean existsByName(String name) {
-        return departmentRepository.existsByName(name.trim());
+        return departmentRepository.existsByName(StringUtils.trimSafely(name));
     }
 
+    /**
+     * Подсчитывает общее количество департаментов в системе.
+     *
+     * @return общее количество департаментов
+     */
     @Transactional(readOnly = true)
     public long count() {
         return departmentRepository.count();
     }
 
+    /**
+     * Получает все департаменты для использования в формах (без дополнительных данных).
+     * Оптимизированный метод для заполнения выпадающих списков.
+     *
+     * @return список всех департаментов
+     */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAllForForms() {
         return departmentRepository.findAll().stream()
             .map(departmentMapper::toDto)
             .toList();
+    }
+
+    private DepartmentDTO mapWithContactCount(DepartmentWithContactCountDTO agg) {
+        DepartmentDTO dto = departmentMapper.toDto(agg.department());
+        dto.setContactCount((int) agg.contactCount());
+        return dto;
     }
 }
 

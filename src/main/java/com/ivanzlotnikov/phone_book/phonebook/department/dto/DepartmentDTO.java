@@ -6,6 +6,10 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * DTO для представления департамента.
+ * Содержит информацию о департаменте, его родителе, количестве контактов и дочерних департаментах.
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

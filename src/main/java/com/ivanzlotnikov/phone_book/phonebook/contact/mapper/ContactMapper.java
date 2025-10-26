@@ -6,10 +6,19 @@ import com.ivanzlotnikov.phone_book.phonebook.contact.entity.Contact;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import org.springframework.stereotype.Component;
 
+/**
+ * Маппер для преобразования сущности Contact в DTO и обратно.
+ * Выполняет конвертацию между слоями приложения.
+ */
 @Component
 public class ContactMapper {
 
-    //Маппинг entity в dto(отображение)
+    /**
+     * Преобразует сущность Contact в DTO для отображения.
+     *
+     * @param entity сущность контакта
+     * @return DTO контакта или null
+     */
     public ContactDTO toDto(Contact entity) {
         if (entity == null) {
             return null;
@@ -28,7 +37,12 @@ public class ContactMapper {
         return dto;
     }
 
-    //Маппинг FormDTO в Entity(сохранение/обновление)
+    /**
+     * Преобразует FormDTO в сущность Contact для сохранения.
+     *
+     * @param formDTO DTO с данными из формы
+     * @return сущность контакта или null
+     */
     public Contact toEntity(ContactFormDTO formDTO) {
         if (formDTO == null) {
             return null;
@@ -38,18 +52,18 @@ public class ContactMapper {
         entity.setFullName(formDTO.getFullName());
         entity.setPosition(formDTO.getPosition());
 
-        if (formDTO.getDepartmentId() != null) {
-            Department department = new Department();
-            department.setId(formDTO.getDepartmentId());
-            entity.setDepartment(department);
-        }
         entity.setWorkPhones(formDTO.getWorkPhones());
         entity.setWorkMobilePhones(formDTO.getWorkMobilePhones());
         entity.setPersonalPhones(formDTO.getPersonalPhones());
         return entity;
     }
 
-    // Маппинг DTO в FormDTO(редактирование)
+    /**
+     * Преобразует ContactDTO в ContactFormDTO для редактирования.
+     *
+     * @param dto DTO контакта для отображения
+     * @return DTO для формы редактирования или null
+     */
     public ContactFormDTO toFormDTO(ContactDTO dto) {
         if (dto == null) {
             return null;

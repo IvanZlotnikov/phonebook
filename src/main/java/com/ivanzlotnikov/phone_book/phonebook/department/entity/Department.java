@@ -20,6 +20,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
+/**
+ * Сущность департамента (отдела) организации. Представляет иерархическую структуру подразделений с
+ * поддержкой родительских и дочерних департаментов, а также связанных контактов.
+ */
 @Entity
 @Table(name = "departments")
 @Getter
@@ -28,23 +32,41 @@ import lombok.ToString;
 @EqualsAndHashCode(exclude = {"parentDepartment", "childrenDepartments", "contacts"})
 public class Department {
 
+    /**
+     * Уникальный идентификатор департамента.
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * Название департамента. Обязательное уникальное поле, максимальная длина 100 символов.
+     */
     @NotBlank(message = "Department name is mandatory")
     @Column(nullable = false, unique = true, length = 100)
     private String name;
 
+    /**
+     * Родительский департамент в иерархии. Связь Many-to-One с ленивой загрузкой. Null для
+     * департаментов верхнего уровня.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_department_id")
     private Department parentDepartment;
 
+    /**
+     * Список дочерних департаментов. При удалении родительского департамента все дочерние также
+     * удаляются (orphanRemoval). Каскадное удаление применяется ко всем операциям.
+     */
     @OneToMany(mappedBy = "parentDepartment",
         cascade = CascadeType.ALL,
         orphanRemoval = true)
     List<Department> childrenDepartments = new ArrayList<>();
 
+    /**
+     * Список контактов (сотрудников), относящихся к данному департаменту. Связь One-to-Many с
+     * ленивой загрузкой. Каскадные операции не применяются.
+     */
     @OneToMany(mappedBy = "department", fetch = FetchType.LAZY, cascade = {})
     private List<Contact> contacts;
 

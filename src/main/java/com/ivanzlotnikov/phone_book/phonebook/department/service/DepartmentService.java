@@ -6,7 +6,8 @@ import com.ivanzlotnikov.phone_book.phonebook.department.dto.DepartmentWithConta
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import com.ivanzlotnikov.phone_book.phonebook.department.mapper.DepartmentMapper;
 import com.ivanzlotnikov.phone_book.phonebook.department.repository.DepartmentRepository;
-import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.InvalidDataException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.ResourceNotFoundException;
 import com.ivanzlotnikov.phone_book.phonebook.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,9 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Сервис для управления департаментами организации.
- * Обрабатывает иерархическую структуру департаментов, включая операции
- * с родительскими и дочерними подразделениями.
+ * Сервис для управления департаментами организации. Обрабатывает иерархическую структуру
+ * департаментов, включая операции с родительскими и дочерними подразделениями.
  */
 @Service
 @Transactional
@@ -61,17 +61,17 @@ public class DepartmentService {
     }
 
     /**
-     * Находит сущность департамента по идентификатору.
-     * Используется внутри сервисов для получения entity объекта.
+     * Находит сущность департамента по идентификатору. Используется внутри сервисов для получения
+     * entity объекта.
      *
      * @param id идентификатор департамента
      * @return сущность департамента
-     * @throws EntityNotFoundException если департамент не найден
+     * @throws ResourceNotFoundException если департамент не найден
      */
     @Transactional(readOnly = true)
     public Department findEntityById(Long id) {
         return departmentRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Department not found with id: " + id));
+            .orElseThrow(() -> ResourceNotFoundException.byId("Департамент ", id));
     }
 
     /**
@@ -79,23 +79,24 @@ public class DepartmentService {
      *
      * @param departmentDTO данные департамента
      * @return сохраненный департамент в виде DTO
+     * @throws ResourceNotFoundException если департамент не найден
      */
     public DepartmentDTO save(DepartmentDTO departmentDTO) {
         Department department;
         if (departmentDTO.getId() != null) {
             department = departmentRepository.findById(departmentDTO.getId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                    "Department with id " + departmentDTO.getId() + " not found"));
+                .orElseThrow(
+                    () -> ResourceNotFoundException.byId("Департамент", departmentDTO.getId()));
         } else {
             department = new Department();
         }
         department.setName(StringUtils.trimSafely(departmentDTO.getName()));
+
         if (departmentDTO.getParentDepartmentId() != null) {
             Department parent = departmentRepository.findById(
                     departmentDTO.getParentDepartmentId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                    "Parent department with id " + departmentDTO.getParentDepartmentId()
-                    + " not found"));
+                .orElseThrow(() -> ResourceNotFoundException.byId(
+                    "Родительский департамент", departmentDTO.getParentDepartmentId()));
             department.setParentDepartment(parent);
         } else {
             department.setParentDepartment(null);
@@ -107,23 +108,25 @@ public class DepartmentService {
     }
 
     /**
-     * Удаляет департамент по идентификатору.
-     * Проверяет наличие контактов и дочерних департаментов перед удалением.
+     * Удаляет департамент по идентификатору. Проверяет наличие контактов и дочерних департаментов
+     * перед удалением.
      *
      * @param id идентификатор департамента
-     * @throws IllegalStateException если департамент содержит контакты или поддепартаменты
+     * @throws ResourceNotFoundException если департамент содержит контакты или поддепартаменты
      */
     public void deleteById(Long id) {
         Department department = departmentRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Department not found"));
+            .orElseThrow(() -> ResourceNotFoundException.byId("Департамент", id));
 
         if (!department.getChildrenDepartments().isEmpty()) {
-            throw new IllegalStateException("Cannot delete department with child departments");
+            throw InvalidDataException.forField("id",
+                "Нельзя удалить департамент с дочерними подразделениями");
         }
 
         long contactCount = contactRepository.countByDepartmentId(id);
         if (contactCount > 0) {
-            throw new IllegalStateException("Cannot delete department with contacts");
+            throw InvalidDataException.forField("id",
+                "Нельзя удалить департамент, содержащий контакты");
         }
 
         departmentRepository.deleteById(id);
@@ -156,8 +159,8 @@ public class DepartmentService {
     }
 
     /**
-     * Получает все поддепартаменты указанного департамента на всех уровнях вложенности.
-     * Использует рекурсивный обход иерархии с ограничением глубины.
+     * Получает все поддепартаменты указанного департамента на всех уровнях вложенности. Использует
+     * рекурсивный обход иерархии с ограничением глубины.
      *
      * @param departmentId идентификатор родительского департамента
      * @return список всех поддепартаментов
@@ -165,7 +168,7 @@ public class DepartmentService {
     @Transactional(readOnly = true)
     public List<Department> getDepartmentsHierarchy(Long departmentId) {
         Department department = departmentRepository.findById(departmentId)
-            .orElseThrow(() -> new EntityNotFoundException("Department not found"));
+            .orElseThrow(() -> ResourceNotFoundException.byId("Департамент", departmentId));
 
         List<Department> allDepartments = departmentRepository.findAllWithParent();
 
@@ -195,8 +198,8 @@ public class DepartmentService {
     }
 
     /**
-     * Строит полное иерархическое дерево департаментов.
-     * Возвращает корневые департаменты со всеми вложенными поддепартаментами.
+     * Строит полное иерархическое дерево департаментов. Возвращает корневые департаменты со всеми
+     * вложенными поддепартаментами.
      *
      * @return список корневых департаментов с вложенной иерархией
      */
@@ -238,14 +241,15 @@ public class DepartmentService {
      */
     @Transactional(readOnly = true)
     public List<DepartmentDTO> searchByName(String name) {
-        return departmentRepository.findByNameWithContactCount(StringUtils.trimSafely(name)).stream()
+        return departmentRepository.findByNameWithContactCount(StringUtils.trimSafely(name))
+            .stream()
             .map(this::mapWithContactCount)
             .toList();
     }
 
     /**
-     * Проверяет существование департамента с указанным названием.
-     * Используется для предотвращения дублирования названий.
+     * Проверяет существование департамента с указанным названием. Используется для предотвращения
+     * дублирования названий.
      *
      * @param name название департамента
      * @return true, если департамент с таким названием существует

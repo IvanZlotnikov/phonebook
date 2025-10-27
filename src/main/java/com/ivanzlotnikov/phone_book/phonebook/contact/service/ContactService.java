@@ -7,7 +7,8 @@ import com.ivanzlotnikov.phone_book.phonebook.contact.mapper.ContactMapper;
 import com.ivanzlotnikov.phone_book.phonebook.contact.repository.ContactRepository;
 import com.ivanzlotnikov.phone_book.phonebook.department.entity.Department;
 import com.ivanzlotnikov.phone_book.phonebook.department.service.DepartmentService;
-import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.InvalidDataException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.ResourceNotFoundException;
 import com.ivanzlotnikov.phone_book.phonebook.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,10 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Сервис для управления контактами в телефонном справочнике.
- * Предоставляет бизнес-логику для операций CRUD, поиска и фильтрации контактов.
- * Все методы записи выполняются в транзакциях.
- *
+ * Сервис для управления контактами в телефонном справочнике. Предоставляет бизнес-логику для
+ * операций CRUD, поиска и фильтрации контактов. Все методы записи выполняются в транзакциях.
  */
 @Slf4j
 @Service
@@ -44,8 +43,7 @@ public class ContactService {
     public Page<ContactDTO> findAll(Pageable pageable) {
         log.info("Fetching all contacts for page {} with size {}", pageable.getPageNumber(),
             pageable.getPageSize());
-        Page<Contact> contacts = contactRepository.findAllWithDepartment(pageable);
-        return contacts.map(contactMapper::toDto);
+        return contactRepository.findAllWithDepartment(pageable).map(contactMapper::toDto);
     }
 
     /**
@@ -53,13 +51,13 @@ public class ContactService {
      *
      * @param id идентификатор контакта
      * @return DTO контакта
-     * @throws EntityNotFoundException если контакт не найден
+     * @throws ResourceNotFoundException если контакт не найден
      */
     @Transactional(readOnly = true)
     public ContactDTO findById(Long id) {
         log.info("Finding contacts by id: {}", id);
         Contact contact = contactRepository.findByIdWithDepartment(id)
-            .orElseThrow(() -> new EntityNotFoundException("Contact not found with id: " + id));
+            .orElseThrow(() -> new ResourceNotFoundException("Контакт " + id));
         return contactMapper.toDto(contact);
     }
 
@@ -86,11 +84,11 @@ public class ContactService {
      * Удаляет контакт по идентификатору.
      *
      * @param id идентификатор контакта для удаления
-     * @throws EntityNotFoundException если контакт не найден
+     * @throws ResourceNotFoundException если контакт не найден
      */
     public void deleteById(long id) {
         if (!contactRepository.existsById(id)) {
-            throw new EntityNotFoundException("Contact not found with id: " + id);
+            throw new ResourceNotFoundException("Контакт " + id);
         }
         contactRepository.deleteById(id);
     }
@@ -102,8 +100,7 @@ public class ContactService {
      */
     public void deleteAllById(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
-            log.warn("Attempt to delete contacts with empty or null ID list");
-            return;
+            throw InvalidDataException.forField("contactIds", "Список контактов для удаления пуст");
         }
         contactRepository.deleteAllByIdIn(ids);
         log.info("Successfully deleted contacts with IDs: {}", ids);
@@ -112,7 +109,7 @@ public class ContactService {
     /**
      * Выполняет поиск контактов по имени с пагинацией.
      *
-     * @param name часть имени для поиска
+     * @param name     часть имени для поиска
      * @param pageable параметры пагинации
      * @return страница найденных контактов
      */
@@ -128,7 +125,7 @@ public class ContactService {
      * Находит контакты в указанном департаменте и всех его поддепартаментах.
      *
      * @param departmentId идентификатор департамента
-     * @param pageable параметры пагинации
+     * @param pageable     параметры пагинации
      * @return страница контактов из департамента и его поддепартаментов
      */
     @Transactional(readOnly = true)
@@ -139,16 +136,17 @@ public class ContactService {
     }
 
     /**
-     * Выполняет комбинированный поиск контактов по имени и департаменту.
-     * Ищет в указанном департаменте и всех его поддепартаментах.
+     * Выполняет комбинированный поиск контактов по имени и департаменту. Ищет в указанном
+     * департаменте и всех его поддепартаментах.
      *
-     * @param name часть имени для поиска
+     * @param name         часть имени для поиска
      * @param departmentId идентификатор департамента для фильтрации
-     * @param pageable параметры пагинации
+     * @param pageable     параметры пагинации
      * @return страница найденных контактов
      */
     @Transactional(readOnly = true)
-    public Page<ContactDTO> searchByNameAndDepartment(String name, Long departmentId, Pageable pageable) {
+    public Page<ContactDTO> searchByNameAndDepartment(String name, Long departmentId,
+        Pageable pageable) {
         String normalizedName = StringUtils.trimSafely(name);
         log.info("Searching contacts by name: {} and department: {}", normalizedName, departmentId);
         List<Long> departmentIds = getDepartmentIdsWithHierarchy(departmentId);
@@ -166,8 +164,8 @@ public class ContactService {
     }
 
     /**
-     * Проверяет существование контакта с указанными ФИО и должностью.
-     * Используется для предотвращения дублирования контактов.
+     * Проверяет существование контакта с указанными ФИО и должностью. Используется для
+     * предотвращения дублирования контактов.
      *
      * @param fullName полное имя сотрудника
      * @param position должность сотрудника

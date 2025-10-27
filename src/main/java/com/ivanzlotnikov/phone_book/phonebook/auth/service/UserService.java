@@ -2,8 +2,9 @@ package com.ivanzlotnikov.phone_book.phonebook.auth.service;
 
 import com.ivanzlotnikov.phone_book.phonebook.auth.entity.User;
 import com.ivanzlotnikov.phone_book.phonebook.auth.repository.UserRepository;
-import com.ivanzlotnikov.phone_book.phonebook.exception.EntityNotFoundException;
-import jakarta.validation.constraints.NotBlank;
+import com.ivanzlotnikov.phone_book.phonebook.exception.DuplicateResourceException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.InvalidDataException;
+import com.ivanzlotnikov.phone_book.phonebook.exception.ResourceNotFoundException;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -12,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Сервис для управления пользователями системы.
- * Предоставляет операции CRUD, управление паролями и проверку существования пользователей.
+ * Сервис для управления пользователями системы. Предоставляет операции CRUD, управление паролями и
+ * проверку существования пользователей.
  */
 @Service
 @Transactional
@@ -73,6 +74,13 @@ public class UserService {
      * @return созданный пользователь
      */
     public User createNewUser(User user) {
+        if (userRepository.existsByUsername(user.getUsername())) {
+            throw DuplicateResourceException.of("Пользователь", "username", user.getUsername());
+        }
+        if (user.getPassword() == null || user.getPassword().isBlank()) {
+            throw InvalidDataException.forField("password",
+                "Пароль обязателен при создании пользователя");
+        }
         user.setPassword(encodePassword(user.getPassword()));
         return userRepository.save(user);
     }
@@ -82,11 +90,13 @@ public class UserService {
      *
      * @param user данные пользователя для обновления
      * @return обновленный пользователь
-     * @throws EntityNotFoundException если пользователь не найден
+     * @throws ResourceNotFoundException если пользователь не найден
      */
     public User updateExistingUser(User user) {
         User existingUser = userRepository.findById(user.getId())
-            .orElseThrow(() -> new EntityNotFoundException("User not found"));
+            .orElseThrow(() ->
+                ResourceNotFoundException.byId("Пользователь",
+                    user.getId()));
         user.setPassword(handlePasswordUpdate(user.getPassword(), existingUser.getPassword()));
         return userRepository.save(user);
     }
@@ -94,7 +104,7 @@ public class UserService {
     /**
      * Обрабатывает обновление пароля пользователя.
      *
-     * @param newPassword новый пароль
+     * @param newPassword      новый пароль
      * @param existingPassword существующий зашифрованный пароль
      * @return зашифрованный пароль (новый или существующий)
      */
@@ -108,7 +118,7 @@ public class UserService {
     /**
      * Проверяет, был ли изменен пароль.
      *
-     * @param newPassword новый пароль
+     * @param newPassword      новый пароль
      * @param existingPassword существующий зашифрованный пароль
      * @return true, если пароль был изменен
      */
@@ -131,11 +141,11 @@ public class UserService {
      * Удаляет пользователя по идентификатору.
      *
      * @param id идентификатор пользователя
-     * @throws EntityNotFoundException если пользователь не найден
+     * @throws ResourceNotFoundException если пользователь не найден
      */
     public void delete(Long id) {
         if (!userRepository.existsById(id)) {
-            throw new EntityNotFoundException("User not found");
+            throw ResourceNotFoundException.byId("Пользователь", id);
         }
         userRepository.deleteById(id);
     }

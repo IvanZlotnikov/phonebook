@@ -1,17 +1,14 @@
--- create table if not exists users
--- (
---     id       bigserial primary key,
---     username varchar(50)  not null unique,
---     password varchar(100) not null,
---     role     varchar(50),
---     enabled  boolean      not null default true
--- );
+-- Индексы для оптимизации производительности
 
--- create table if not exists authorities
--- (
---     username varchar(50) not null,
---     authority varchar(50) not null,
---     constraint fk_authorities_users foreign key (username) references users(username)
--- );
---
--- create unique index if not exists ix_auth_username on authorities(username,authority);
+-- Индексы для таблицы contacts
+CREATE INDEX IF NOT EXISTS idx_contacts_full_name ON contacts (full_name);
+CREATE INDEX IF NOT EXISTS idx_contacts_department_id ON contacts (department_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_full_name_position ON contacts (full_name, position);
+
+-- Индексы для таблицы departments
+CREATE INDEX IF NOT EXISTS idx_departments_name ON departments (name);
+CREATE INDEX IF NOT EXISTS idx_departments_parent_id ON departments (parent_department_id);
+
+-- Индексы для таблицы users
+CREATE INDEX IF NOT EXISTS idx_users_username ON users (username);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);

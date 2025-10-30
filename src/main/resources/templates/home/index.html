@@ -8,10 +8,12 @@
   <title>Главная - Телефонный справочник</title>
 
   <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+        rel="stylesheet">
 
   <!-- Font Awesome CSS -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+        rel="stylesheet">
 
   <!-- Наш кастомный CSS -->
   <link th:href="@{/css/style.css}" rel="stylesheet">
@@ -25,13 +27,15 @@
     </a>
 
     <div class="navbar-nav ms-auto">
-      <a th:href="@{/contacts}" class="btn btn-outline-light btn-sm me-2" sec:authorize="isAuthenticated()">
+      <a th:href="@{/contacts}" class="btn btn-outline-light btn-sm me-2"
+         sec:authorize="isAuthenticated()">
         <i class="fas fa-address-book"></i> Контакты
       </a>
-      <a th:href="@{/users}" class="btn btn-outline-light btn-sm me-2" sec:authorize="hasRole('ADMIN')">
+      <a th:href="@{/users}" class="btn btn-outline-light btn-sm me-2"
+         sec:authorize="hasRole('ADMIN')">
         <i class="fas fa-users"></i> Пользователи
       </a>
-        <span class="navbar-text me-3" sec:authorize="isAuthenticated()">
+      <span class="navbar-text me-3" sec:authorize="isAuthenticated()">
           Вы вошли как: <span sec:authentication="name"></span>
         </span>
       <form th:action="@{/logout}" method="post" sec:authorize="isAuthenticated()" class="d-inline">
@@ -61,7 +65,8 @@
             <h1 class="display-5 mb-3">Добро пожаловать!</h1>
             <p class="lead text-muted">Телефонный справочник компании</p>
             <hr class="my-4">
-            <p class="mb-4">Для доступа к контактам сотрудников необходимо авторизоваться в системе</p>
+            <p class="mb-4">Для доступа к контактам сотрудников необходимо авторизоваться в
+              системе</p>
             <a th:href="@{/login}" class="btn btn-primary btn-lg px-5">
               <i class="fas fa-sign-in-alt me-2"></i>Войти в систему
             </a>
@@ -122,7 +127,7 @@
   <!-- КОНТЕНТ ДЛЯ АВТОРИЗОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ -->
   <!-- ========================================== -->
   <div sec:authorize="isAuthenticated()">
-    
+
     <!-- Приветствие -->
     <div class="row mb-4">
       <div class="col-12">
@@ -138,26 +143,19 @@
     <!-- Статистика -->
     <h5 class="mb-3"><i class="fas fa-chart-bar me-2"></i>Статистика системы</h5>
     <div class="row mb-4">
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card border-primary shadow-sm h-100">
-          <div class="card-body text-center">
-            <i class="fas fa-users fa-3x text-primary mb-3"></i>
-            <h3 class="mb-0" th:text="${totalContacts}">0</h3>
-            <p class="text-muted mb-3">Всего контактов</p>
-            <a th:href="@{/contacts}" class="btn btn-outline-primary btn-sm">
-              <i class="fas fa-eye me-1"></i>Просмотреть
-            </a>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-md-6 col-lg-3 mb-3">
-        <div class="card border-success shadow-sm h-100">
+      <div class="card border-primary shadow-sm h-100">
+        <div class="card-body text-center">
+          <i class="fas fa-users fa-3x text-primary mb-3"></i>
+          <h3 class="mb-0" th:text="${totalContacts}">0</h3>
+          <p class="text-muted mb-3">Всего контактов</p>
+          <a th:href="@{/contacts}" class="btn btn-outline-light btn-sm me-2">
+            <i class="fas fa-users"></i> Контакты
+          </a>
           <div class="card-body text-center">
             <i class="fas fa-sitemap fa-3x text-success mb-3"></i>
             <h3 class="mb-0" th:text="${totalDepartments}">0</h3>
             <p class="text-muted mb-3">Подразделений</p>
-            <a th:href="@{/contacts}" class="btn btn-outline-success btn-sm">
+            <a th:href="@{/departments}" class="btn btn-outline-success btn-sm">
               <i class="fas fa-eye me-1"></i>Просмотреть
             </a>
           </div>
@@ -241,8 +239,15 @@
             </div>
             <div class="col-md-6 mb-3">
               <div class="d-grid">
-                <a th:href="@{/users}" class="btn btn-info">
-                  <i class="fas fa-users-cog me-2"></i>Управление пользователями
+                <a th:href="@{/departments/new}" class="btn btn-secondary">
+                  <i class="fas fa-building me-2"></i>Добавить департамент
+                </a>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="d-grid">
+                <a th:href="@{/departments}" class="btn btn-dark">
+                  <i class="fas fa-sitemap me-2"></i>Все департаменты
                 </a>
               </div>
             </div>

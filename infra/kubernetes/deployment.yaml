@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: phonebook
-          image: your-docker-repo/phonebook:latest
+          image: ivanzlotnikov/phonebook:latest
           ports:
             - containerPort: 8080
           env:

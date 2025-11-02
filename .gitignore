@@ -1,11 +1,11 @@
 # Gradle
-.gradle/
-build/
-out/
-!gradle/wrapper/gradle-wrapper.jar
+#.gradle/
+#build/
+#out/
+#!gradle/wrapper/gradle-wrapper.jar
 
 # Gradle Wrapper
-!gradle/wrapper/gradle-wrapper.properties
+#!gradle/wrapper/gradle-wrapper.properties
 
 # Java
 *.class
@@ -86,5 +86,5 @@ ehthumbs.db
 *~
 
 # Application specific
-/src/main/resources/application-local.properties
-/src/main/resources/application-docker.properties
+#/src/main/resources/application-local.properties
+#/src/main/resources/application-docker.properties

@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: phonebook-app
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/IvanZlotnikov/phonebook.git'
+    path: infra/kubernetes
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: default
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true

@@ -17,8 +17,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -43,8 +41,6 @@ public class DepartmentService {
      *
      * @return список всех департаментов с подсчетом контактов
      */
-    @Cacheable("departments")
-    @Transactional(readOnly = true)
     public List<DepartmentDTO> findAll() {
         return departmentRepository.findAllWithContactCount().stream()
             .map(this::mapWithContactCount)
@@ -84,7 +80,6 @@ public class DepartmentService {
      * @return сохраненный департамент в виде DTO
      * @throws ResourceNotFoundException если департамент не найден
      */
-    @CacheEvict(cacheNames = {"departments", "departmentTree", "departmentCount", "departmentsForForms"}, allEntries = true)
     public DepartmentDTO save(DepartmentDTO departmentDTO) {
         Department department;
         if (departmentDTO.getId() != null) {
@@ -118,7 +113,6 @@ public class DepartmentService {
      * @param id идентификатор департамента
      * @throws ResourceNotFoundException если департамент содержит контакты или поддепартаменты
      */
-    @CacheEvict(cacheNames = {"departments", "departmentTree", "departmentCount", "departmentsForForms"}, allEntries = true)
     public void deleteById(Long id) {
         Department department = departmentRepository.findById(id)
             .orElseThrow(() -> ResourceNotFoundException.byId("Департамент", id));
@@ -208,7 +202,6 @@ public class DepartmentService {
      *
      * @return список корневых департаментов с вложенной иерархией
      */
-    @Cacheable("departmentTree")
     @Transactional(readOnly = true)
     public List<DepartmentDTO> getDepartmentTree() {
         List<Department> allDepartments = departmentRepository.findAllWithParent();
@@ -270,7 +263,6 @@ public class DepartmentService {
      *
      * @return общее количество департаментов
      */
-    @Cacheable("departmentCount")
     @Transactional(readOnly = true)
     public long count() {
         return departmentRepository.count();
@@ -282,7 +274,6 @@ public class DepartmentService {
      *
      * @return список всех департаментов
      */
-    @Cacheable("departmentsForForms")
     @Transactional(readOnly = true)
     public List<DepartmentDTO> findAllForForms() {
         return departmentRepository.findAll().stream()

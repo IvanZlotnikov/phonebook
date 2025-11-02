@@ -2,11 +2,25 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: phonebook-app
+  labels:
+    app: phonebook
 spec:
+  # Количество реплик
   replicas: 3
+
+  # Селектор для поиска подов
   selector:
     matchLabels:
       app: phonebook
+
+  # Стратегия обновления
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  # Шаблон пода
   template:
     metadata:
       labels:
@@ -14,12 +28,41 @@ spec:
     spec:
       containers:
         - name: phonebook
-          image: ivanzlotnikov/phonebook:latest
+          # Имя образа будет заменено Kustomize
+          image: phonebook:latest
+          imagePullPolicy: Always
+
+          # Порт контейнера
           ports:
             - containerPort: 8080
+              name: http
+              protocol: TCP
+
+          # Переменные окружения
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+
+          # Проверки работоспособности
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Ограничения ресурсов
           resources:
             requests:
               cpu: "500m"
@@ -27,3 +70,13 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1024Mi"
+
+          # Безопасность
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true

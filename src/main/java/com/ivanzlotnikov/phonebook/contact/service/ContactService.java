@@ -115,17 +115,18 @@ public class ContactService {
     }
 
     /**
-     * Выполняет поиск контактов по имени с пагинацией.
+     * Выполняет поиск контактов по ФИО с пагинацией.
+     * Поиск выполняется по фамилии, имени или отчеству.
      *
-     * @param name     часть имени для поиска
+     * @param query    поисковый запрос
      * @param pageable параметры пагинации
      * @return страница найденных контактов
      */
     @Transactional(readOnly = true)
-    public Page<ContactDTO> searchByName(String name, Pageable pageable) {
-        String normalizedName = StringUtils.trimSafely(name);
-        log.info("Searching contacts by name: {}", normalizedName);
-        return contactRepository.findByFullNameContainingIgnoreCase(normalizedName, pageable)
+    public Page<ContactDTO> searchByName(String query, Pageable pageable) {
+        String normalizedQuery = StringUtils.trimSafely(query);
+        log.info("Searching contacts by name query: {}", normalizedQuery);
+        return contactRepository.findByNameContainingIgnoreCase(normalizedQuery, pageable)
             .map(contactMapper::toDto);
     }
 
@@ -144,21 +145,22 @@ public class ContactService {
     }
 
     /**
-     * Выполняет комбинированный поиск контактов по имени и департаменту. Ищет в указанном
+     * Выполняет комбинированный поиск контактов по ФИО и департаменту. Ищет в указанном
      * департаменте и всех его поддепартаментах.
+     * Поиск выполняется по фамилии, имени или отчеству.
      *
-     * @param name         часть имени для поиска
+     * @param query        поисковый запрос
      * @param departmentId идентификатор департамента для фильтрации
      * @param pageable     параметры пагинации
      * @return страница найденных контактов
      */
     @Transactional(readOnly = true)
-    public Page<ContactDTO> searchByNameAndDepartment(String name, Long departmentId,
+    public Page<ContactDTO> searchByNameAndDepartment(String query, Long departmentId,
         Pageable pageable) {
-        String normalizedName = StringUtils.trimSafely(name);
-        log.info("Searching contacts by name: {} and department: {}", normalizedName, departmentId);
+        String normalizedQuery = StringUtils.trimSafely(query);
+        log.info("Searching contacts by query: {} and department: {}", normalizedQuery, departmentId);
         List<Long> departmentIds = getDepartmentIdsWithHierarchy(departmentId);
-        return contactRepository.findByNameAndDepartmentIds(normalizedName, departmentIds, pageable)
+        return contactRepository.findByNameAndDepartmentIds(normalizedQuery, departmentIds, pageable)
             .map(contactMapper::toDto);
     }
 
@@ -175,14 +177,18 @@ public class ContactService {
      * Проверяет существование контакта с указанными ФИО и должностью. Используется для
      * предотвращения дублирования контактов.
      *
-     * @param fullName полное имя сотрудника
-     * @param position должность сотрудника
+     * @param lastName   фамилия сотрудника
+     * @param firstName  имя сотрудника
+     * @param middleName отчество сотрудника
+     * @param position   должность сотрудника
      * @return true, если контакт с такими данными уже существует
      */
     @Transactional(readOnly = true)
-    public boolean existsByFullNameAndPosition(String fullName, String position) {
-        return contactRepository.existsByFullNameAndPosition(
-            StringUtils.trimSafely(fullName),
+    public boolean existsByNameAndPosition(String lastName, String firstName, String middleName, String position) {
+        return contactRepository.existsByLastNameAndFirstNameAndMiddleNameAndPosition(
+            StringUtils.trimSafely(lastName),
+            StringUtils.trimSafely(firstName),
+            StringUtils.trimSafely(middleName),
             StringUtils.trimSafely(position));
     }
 

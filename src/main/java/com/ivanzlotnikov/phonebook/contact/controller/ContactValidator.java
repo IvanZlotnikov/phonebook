@@ -25,13 +25,18 @@ public class ContactValidator {
      */
     public void checkForDuplicate(ContactFormDTO contactFormDTO) {
         if (contactFormDTO.getId() == null &&
-            contactService.existsByFullNameAndPosition(
-                contactFormDTO.getFullName(),
+            contactService.existsByNameAndPosition(
+                contactFormDTO.getLastName(),
+                contactFormDTO.getFirstName(),
+                contactFormDTO.getMiddleName(),
                 contactFormDTO.getPosition()
             )) {
+            String fullName = contactFormDTO.getLastName() + " " + 
+                             contactFormDTO.getFirstName() + 
+                             (contactFormDTO.getMiddleName() != null ? " " + contactFormDTO.getMiddleName() : "");
             throw DuplicateResourceException.of(
                 "Контакт", "ФИО и должность",
-                contactFormDTO.getFullName() + " / " + contactFormDTO.getPosition());
+                fullName + " / " + contactFormDTO.getPosition());
         }
     }
 }

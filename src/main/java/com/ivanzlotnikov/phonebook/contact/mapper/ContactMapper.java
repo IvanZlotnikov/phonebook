@@ -24,7 +24,9 @@ public class ContactMapper {
         }
         ContactDTO dto = new ContactDTO();
         dto.setId(entity.getId());
-        dto.setFullName(entity.getFullName());
+        dto.setLastName(entity.getLastName());
+        dto.setFirstName(entity.getFirstName());
+        dto.setMiddleName(entity.getMiddleName());
         dto.setPosition(entity.getPosition());
         if (entity.getDepartment() != null) {
             dto.setDepartmentId(entity.getDepartment().getId());
@@ -48,7 +50,9 @@ public class ContactMapper {
         }
         Contact entity = new Contact();
         entity.setId(formDTO.getId());
-        entity.setFullName(formDTO.getFullName());
+        entity.setLastName(formDTO.getLastName());
+        entity.setFirstName(formDTO.getFirstName());
+        entity.setMiddleName(formDTO.getMiddleName());
         entity.setPosition(formDTO.getPosition());
 
         entity.setWorkPhones(formDTO.getWorkPhones());
@@ -69,7 +73,9 @@ public class ContactMapper {
         }
         ContactFormDTO formDTO = new ContactFormDTO();
         formDTO.setId(dto.getId());
-        formDTO.setFullName(dto.getFullName());
+        formDTO.setLastName(dto.getLastName());
+        formDTO.setFirstName(dto.getFirstName());
+        formDTO.setMiddleName(dto.getMiddleName());
         formDTO.setPosition(dto.getPosition());
         formDTO.setDepartmentId(dto.getDepartmentId());
         formDTO.setWorkPhones(dto.getWorkPhones());

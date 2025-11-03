@@ -1,4 +1,5 @@
 -- Скрипт для генерации 10 000 тестовых контактов с телефонами.
+-- ФИО разделено на три отдельных поля для точного поиска.
 -- Внимание: выполнение этого скрипта может занять некоторое время.
 
 -- Создаем временную функцию для генерации случайного номера телефона
@@ -26,10 +27,9 @@ DO $$
         -- Переменные для цикла
         i INT;
         gender INT;
-        last_name TEXT;
-        first_name TEXT;
-        patronymic TEXT;
-        full_name_val TEXT;
+        last_name_val TEXT;
+        first_name_val TEXT;
+        patronymic_val TEXT;
         position_val TEXT;
         department_id_val INT;
         new_contact_id INT;
@@ -40,22 +40,20 @@ DO $$
                 -- Определяем пол для выбора имени и отчества
                 gender := floor(random() * 2); -- 0 для мужчины, 1 для женщины
 
-                last_name := last_names[1 + floor(random() * array_length(last_names, 1))];
+                last_name_val := last_names[1 + floor(random() * array_length(last_names, 1))];
 
                 IF gender = 0 THEN
                     -- Мужское ФИО
-                    first_name := male_first_names[1 + floor(random() * array_length(male_first_names, 1))];
-                    patronymic := male_patronymics[1 + floor(random() * array_length(male_patronymics, 1))];
-                    full_name_val := last_name || ' ' || first_name || ' ' || patronymic;
+                    first_name_val := male_first_names[1 + floor(random() * array_length(male_first_names, 1))];
+                    patronymic_val := male_patronymics[1 + floor(random() * array_length(male_patronymics, 1))];
                 ELSE
                     -- Женское ФИО
-                    first_name := female_first_names[1 + floor(random() * array_length(female_first_names, 1))];
-                    patronymic := female_patronymics[1 + floor(random() * array_length(female_patronymics, 1))];
+                    first_name_val := female_first_names[1 + floor(random() * array_length(female_first_names, 1))];
+                    patronymic_val := female_patronymics[1 + floor(random() * array_length(female_patronymics, 1))];
                     -- Простое склонение фамилии для женщин
-                    IF right(last_name, 2) = 'ов' OR right(last_name, 2) = 'ев' OR right(last_name, 2) = 'ин' THEN
-                        last_name := last_name || 'а';
+                    IF right(last_name_val, 2) = 'ов' OR right(last_name_val, 2) = 'ев' OR right(last_name_val, 2) = 'ин' THEN
+                        last_name_val := last_name_val || 'а';
                     END IF;
-                    full_name_val := last_name || ' ' || first_name || ' ' || patronymic;
                 END IF;
 
                 -- Выбираем случайную должность
@@ -65,8 +63,8 @@ DO $$
                 department_id_val := floor(random() * 6 + 1);
 
                 -- Вставляем сгенерированную запись и получаем её ID
-                INSERT INTO contacts (full_name, position, department_id)
-                VALUES (full_name_val, position_val, department_id_val)
+                INSERT INTO contacts (last_name, first_name, middle_name, position, department_id)
+                VALUES (last_name_val, first_name_val, patronymic_val, position_val, department_id_val)
                 RETURNING id INTO new_contact_id;
 
                 -- Добавляем рабочий телефон (с вероятностью 90%)

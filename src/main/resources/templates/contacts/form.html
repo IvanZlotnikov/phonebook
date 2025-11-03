@@ -91,27 +91,51 @@
             <input type="hidden" name="returnDept" th:value="${returnDept}"/>
             <input type="hidden" name="returnPage" th:value="${returnPage}"/>
 
+            <!-- ФИО раздельно -->
             <div class="row mb-3">
-              <div class="col-md-6">
-                <label for="fullName" class="form-label required-field">ФИО</label>
-                <input type="text" class="form-control" id="fullName" th:field="*{fullName}"
-                       th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'">
-                <div class="invalid-feedback" th:if="${#fields.hasErrors('fullName')}">
-                  <span th:errors="*{fullName}"></span>
+              <div class="col-md-4">
+                <label for="lastName" class="form-label required-field">Фамилия</label>
+                <input type="text" class="form-control" id="lastName" th:field="*{lastName}"
+                       placeholder="Иванов"
+                       th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'">
+                <div class="invalid-feedback" th:if="${#fields.hasErrors('lastName')}">
+                  <span th:errors="*{lastName}"></span>
                 </div>
               </div>
 
+              <div class="col-md-4">
+                <label for="firstName" class="form-label required-field">Имя</label>
+                <input type="text" class="form-control" id="firstName" th:field="*{firstName}"
+                       placeholder="Иван"
+                       th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'">
+                <div class="invalid-feedback" th:if="${#fields.hasErrors('firstName')}">
+                  <span th:errors="*{firstName}"></span>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <label for="middleName" class="form-label">Отчество</label>
+                <input type="text" class="form-control" id="middleName" th:field="*{middleName}"
+                       placeholder="Иванович"
+                       th:classappend="${#fields.hasErrors('middleName')} ? 'is-invalid'">
+                <div class="invalid-feedback" th:if="${#fields.hasErrors('middleName')}">
+                  <span th:errors="*{middleName}"></span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Должность и подразделение -->
+            <div class="row mb-3">
               <div class="col-md-6">
                 <label for="position" class="form-label required-field">Должность</label>
                 <input type="text" class="form-control" id="position" th:field="*{position}"
+                       placeholder="Генеральный директор"
                        th:classappend="${#fields.hasErrors('position')} ? 'is-invalid'">
                 <div class="invalid-feedback" th:if="${#fields.hasErrors('position')}">
                   <span th:errors="*{position}"></span>
                 </div>
               </div>
-            </div>
 
-            <div class="row mb-3">
               <div class="col-md-6">
                 <label for="departmentId" class="form-label">Подразделение</label>
                 <select class="form-select" id="departmentId" th:field="*{departmentId}">
@@ -125,6 +149,7 @@
               </div>
             </div>
 
+            <!-- Телефоны -->
             <div class="row mb-3">
               <div class="col-md-4">
                 <label class="form-label">Служебные телефоны</label>

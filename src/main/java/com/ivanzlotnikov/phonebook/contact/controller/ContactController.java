@@ -89,7 +89,10 @@ public class ContactController {
     private Pageable createPageable(int page, int size) {
         int normalizedSize = (size <= 0 || size > MAX_PAGE_SIZE) ? DEFAULT_PAGE_SIZE : size;
         int normalizedPage = Math.max(page, 0);
-        return PageRequest.of(normalizedPage, normalizedSize, Sort.by("fullName").ascending());
+        return PageRequest.of(normalizedPage, normalizedSize, 
+            Sort.by("lastName").ascending()
+                .and(Sort.by("firstName").ascending())
+                .and(Sort.by("middleName").ascending()));
     }
 
     private Page<ContactDTO> fetchContacts(SearchContext searchContext, Pageable pageable) {

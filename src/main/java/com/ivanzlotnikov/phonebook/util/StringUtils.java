@@ -36,4 +36,65 @@ public final class StringUtils {
     public static boolean isBlank(String value) {
         return !isNotBlank(value);
     }
+    
+    /**
+     * Форматирует ФИО в формат "Фамилия И.О."
+     * @param lastName фамилия
+     * @param firstName имя
+     * @param middleName отчество (может быть null)
+     * @return отформатированное ФИО
+     */
+    public static String formatFullName(String lastName, String firstName, String middleName) {
+        StringBuilder result = new StringBuilder();
+        
+        if (isNotBlank(lastName)) {
+            result.append(lastName.trim());
+        }
+        
+        if (isNotBlank(firstName)) {
+            if (result.length() > 0) {
+                result.append(" ");
+            }
+            result.append(firstName.trim().charAt(0)).append(".");
+        }
+        
+        if (isNotBlank(middleName)) {
+            if (result.length() > 0 && isNotBlank(firstName)) {
+                result.append(middleName.trim().charAt(0)).append(".");
+            }
+        }
+        
+        return result.toString();
+    }
+    
+    /**
+     * Форматирует полное ФИО в формат "Фамилия Имя Отчество"
+     * @param lastName фамилия
+     * @param firstName имя
+     * @param middleName отчество (может быть null)
+     * @return полное ФИО
+     */
+    public static String formatFullNameComplete(String lastName, String firstName, String middleName) {
+        StringBuilder result = new StringBuilder();
+        
+        if (isNotBlank(lastName)) {
+            result.append(lastName.trim());
+        }
+        
+        if (isNotBlank(firstName)) {
+            if (result.length() > 0) {
+                result.append(" ");
+            }
+            result.append(firstName.trim());
+        }
+        
+        if (isNotBlank(middleName)) {
+            if (result.length() > 0) {
+                result.append(" ");
+            }
+            result.append(middleName.trim());
+        }
+        
+        return result.toString();
+    }
 }

@@ -13,9 +13,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -36,7 +36,8 @@ public class Contact {
     private static final int PHONE_NUMBER_FIELD_LENGTH = 20;
     private static final int BATCH_SIZE = 50;
 
-    private static final String FULL_NAME_MANDATORY = "Full name is mandatory";
+    private static final String LAST_NAME_MANDATORY = "Фамилия обязательна для заполнения";
+    private static final String FIRST_NAME_MANDATORY = "Имя обязательно для заполнения";
     private static final String POSITION_MANDATORY = "Position is mandatory";
 
     /**
@@ -47,11 +48,24 @@ public class Contact {
     private Long id;
 
     /**
-     * Полное имя сотрудника (ФИО). Обязательное поле, максимальная длина 100 символов.
+     * Фамилия сотрудника. Обязательное поле, максимальная длина 100 символов.
      */
-    @NotBlank(message = FULL_NAME_MANDATORY)
+    @NotBlank(message = LAST_NAME_MANDATORY)
     @Column(nullable = false, length = NAME_FIELD_LENGTH)
-    private String fullName;
+    private String lastName;
+
+    /**
+     * Имя сотрудника. Обязательное поле, максимальная длина 100 символов.
+     */
+    @NotBlank(message = FIRST_NAME_MANDATORY)
+    @Column(nullable = false, length = NAME_FIELD_LENGTH)
+    private String firstName;
+
+    /**
+     * Отчество сотрудника. Необязательное поле, максимальная длина 100 символов.
+     */
+    @Column(length = NAME_FIELD_LENGTH)
+    private String middleName;
 
     /**
      * Должность сотрудника. Обязательное поле, максимальная длина 100 символов.
@@ -68,36 +82,33 @@ public class Contact {
     private Department department;
 
     /**
-     * Список служебных стационарных телефонных номеров. Хранится в отдельной таблице
-     * contact_work_phones. Использует батчинг для оптимизации загрузки (размер батча 50).
+     * Набор служебных стационарных телефонных номеров. Хранится в отдельной таблице
+     * contact_work_phones. Set используется для избежания MultipleBagFetchException.
      */
     @ElementCollection
     @CollectionTable(name = "contact_work_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number", length = PHONE_NUMBER_FIELD_LENGTH)
-    @BatchSize(size = BATCH_SIZE)
-    private List<String> workPhones = new ArrayList<>();
+    private Set<String> workPhones = new HashSet<>();
 
     /**
-     * Список личных телефонных номеров. Хранится в отдельной таблице contact_personal_phones.
-     * Использует батчинг для оптимизации загрузки (размер батча 50).
+     * Набор личных телефонных номеров. Хранится в отдельной таблице contact_personal_phones.
+     * Set используется для избежания MultipleBagFetchException.
      */
     @ElementCollection
     @CollectionTable(name = "contact_personal_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
-    @BatchSize(size = BATCH_SIZE)
-    private List<String> personalPhones = new ArrayList<>();
+    private Set<String> personalPhones = new HashSet<>();
 
     /**
-     * Список служебных мобильных телефонных номеров. Хранится в отдельной таблице
-     * contact_work_mobile_phones. Использует батчинг для оптимизации загрузки (размер батча 50).
+     * Набор служебных мобильных телефонных номеров. Хранится в отдельной таблице
+     * contact_work_mobile_phones. Set используется для избежания MultipleBagFetchException.
      */
     @ElementCollection
     @CollectionTable(name = "contact_work_mobile_phones", joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
-    @BatchSize(size = BATCH_SIZE)
-    private List<String> workMobilePhones = new ArrayList<>();
+    private Set<String> workMobilePhones = new HashSet<>();
 
     /**
      * Сравнивает текущий контакт с другим объектом на основе идентификатора.

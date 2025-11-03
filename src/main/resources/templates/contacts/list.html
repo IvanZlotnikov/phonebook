@@ -17,6 +17,10 @@
 
   <!-- Наш кастомный CSS -->
   <link th:href="@{/css/style.css}" rel="stylesheet">
+  
+  <!-- CSRF токены -->
+  <meta name="_csrf" th:content="${_csrf.token}" />
+  <meta name="_csrf_header" th:content="${_csrf.headerName}" />
 </head>
 <body>
 
@@ -88,7 +92,8 @@
         <div class="card-body">
           <form th:action="@{/contacts}" method="get" class="row g-3">
             <div class="col-md-5">
-              <input type="text" name="search" class="form-control" placeholder="Поиск по ФИО..."
+              <input type="text" name="search" class="form-control" 
+                     placeholder="Поиск по фамилии, имени или отчеству..."
                      th:value="${param.search}">
             </div>
             <div class="col-md-5">
@@ -164,7 +169,7 @@
                   <input type="checkbox" name="contactIds" th:value="${contact.id}"
                          class="contact-checkbox">
                 </td>
-                <td th:text="${contact.fullName}"></td>
+                <td th:text="${contact.getFullName()}"></td>
                 <td th:text="${contact.position}"></td>
                 <td>
                 <span th:if="${contact.departmentId != null}"
@@ -271,17 +276,19 @@
 <script th:inline="javascript">
   function deleteSingleContact(contactId) {
     if (confirm('Удалить контакт?')) {
+      // Создаем форму
       const form = document.createElement('form');
-      form.method = 'post';
+      form.method = 'POST';
       form.action = '/contacts/delete/' + contactId;
-
+      
+      // Добавляем CSRF токен
       const csrfToken = document.querySelector('input[name="_csrf"]').value;
       const csrfInput = document.createElement('input');
       csrfInput.type = 'hidden';
       csrfInput.name = '_csrf';
       csrfInput.value = csrfToken;
       form.appendChild(csrfInput);
-
+      
       // Добавляем параметры поиска
       const searchParam = /*[[${param.search}]]*/ '';
       if (searchParam) {
@@ -291,7 +298,8 @@
         searchInput.value = searchParam;
         form.appendChild(searchInput);
       }
-
+      
+      // Добавляем параметр подразделения
       const deptParam = /*[[${param.dept}]]*/ '';
       if (deptParam) {
         const deptInput = document.createElement('input');
@@ -300,14 +308,16 @@
         deptInput.value = deptParam;
         form.appendChild(deptInput);
       }
-
+      
+      // Добавляем номер страницы
       const pageParam = /*[[${page}]]*/ 0;
       const pageInput = document.createElement('input');
       pageInput.type = 'hidden';
       pageInput.name = 'page';
       pageInput.value = pageParam;
       form.appendChild(pageInput);
-
+      
+      // Добавляем форму на страницу и отправляем
       document.body.appendChild(form);
       form.submit();
     }

@@ -4,6 +4,7 @@ import com.ivanzlotnikov.phonebook.contact.dto.ContactFormDTO;
 import com.ivanzlotnikov.phonebook.contact.service.ContactService;
 import com.ivanzlotnikov.phonebook.exception.DuplicateResourceException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class ContactValidator {
 
     private final ContactService contactService;
@@ -34,6 +36,9 @@ public class ContactValidator {
             String fullName = contactFormDTO.getLastName() + " " + 
                              contactFormDTO.getFirstName() + 
                              (contactFormDTO.getMiddleName() != null ? " " + contactFormDTO.getMiddleName() : "");
+            String errorMessage = String.format("Попытка создания дубликата контакта: %s / %s",
+                fullName, contactFormDTO.getPosition());
+            log.warn(errorMessage);
             throw DuplicateResourceException.of(
                 "Контакт", "ФИО и должность",
                 fullName + " / " + contactFormDTO.getPosition());

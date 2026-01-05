@@ -14,12 +14,12 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -31,10 +31,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 @RequiredArgsConstructor
 public class ContactService {
+    private static final String CACHE_CONTACT_COUNT = "contactCount";
+    private static final String CACHE_DEPARTMENT_HIERARCHY = "departmentHierarchy";
 
     private final ContactRepository contactRepository;
     private final ContactMapper contactMapper;
     private final DepartmentService departmentService;
+    private final CacheManager cacheManager;
 
     /**
      * Получает все контакты с пагинацией.
@@ -46,13 +49,14 @@ public class ContactService {
     public Page<ContactDTO> findAll(Pageable pageable) {
         log.info("Fetching all contacts for page {} with size {}", pageable.getPageNumber(),
             pageable.getPageSize());
-        return contactRepository.findAllWithDepartment(pageable).map(contactMapper::toDto);
+        return contactRepository.findAllWithDepartment(pageable)
+            .map(contactMapper::toDto);
     }
 
     /**
      * Находит контакт по идентификатору.
      *
-     * @param id идентификатор контакта
+     * @param id ID контакта
      * @return DTO контакта
      * @throws ResourceNotFoundException если контакт не найден
      */
@@ -91,11 +95,7 @@ public class ContactService {
      * @throws ResourceNotFoundException если контакт не найден
      */
     @CacheEvict(cacheNames = "contactCount", allEntries = true)
-    @Async
     public void deleteById(long id) {
-        if (!contactRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Контакт " + id);
-        }
         contactRepository.deleteById(id);
     }
 
@@ -104,8 +104,8 @@ public class ContactService {
      *
      * @param ids список идентификаторов контактов для удаления
      */
+    @Transactional
     @CacheEvict(cacheNames = "contactCount", allEntries = true)
-    @Async
     public void deleteAllById(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             throw InvalidDataException.forField("contactIds", "Список контактов для удаления пуст");

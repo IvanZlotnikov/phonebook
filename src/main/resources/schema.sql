@@ -6,6 +6,9 @@ CREATE INDEX IF NOT EXISTS idx_contacts_first_name ON contacts (first_name);
 CREATE INDEX IF NOT EXISTS idx_contacts_middle_name ON contacts (middle_name);
 CREATE INDEX IF NOT EXISTS idx_contacts_department_id ON contacts (department_id);
 CREATE INDEX IF NOT EXISTS idx_contacts_full_name_position ON contacts (last_name, first_name, middle_name, position);
+CREATE INDEX IF NOT EXISTS idx_contacts_full_name_search ON contacts (
+                       LOWER(last_name || ' ' || first_name || ' ' || COALESCE(middle_name, ''))
+    );
 
 -- Индексы для таблицы departments
 CREATE INDEX IF NOT EXISTS idx_departments_name ON departments (name);

@@ -11,6 +11,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.NamedAttributeNode;
+import jakarta.persistence.NamedEntityGraph;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import java.util.HashSet;
@@ -30,6 +32,17 @@ import org.hibernate.annotations.BatchSize;
 @Getter
 @Setter
 @NoArgsConstructor
+
+@NamedEntityGraph(
+    name = "Contact.withPhonesAndDepartment",
+    attributeNodes = {
+        @NamedAttributeNode("workPhones"),
+        @NamedAttributeNode("workMobilePhones"),
+        @NamedAttributeNode("personalPhones"),
+        @NamedAttributeNode("department")
+    }
+)
+
 public class Contact {
 
     private static final int NAME_FIELD_LENGTH = 100;
@@ -89,16 +102,18 @@ public class Contact {
     @CollectionTable(name = "contact_work_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number", length = PHONE_NUMBER_FIELD_LENGTH)
+    @BatchSize(size = BATCH_SIZE)
     private Set<String> workPhones = new HashSet<>();
 
     /**
-     * Набор личных телефонных номеров. Хранится в отдельной таблице contact_personal_phones.
-     * Set используется для избежания MultipleBagFetchException.
+     * Набор личных телефонных номеров. Хранится в отдельной таблице contact_personal_phones. Set
+     * используется для избежания MultipleBagFetchException.
      */
     @ElementCollection
     @CollectionTable(name = "contact_personal_phones",
         joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
+    @BatchSize(size = BATCH_SIZE)
     private Set<String> personalPhones = new HashSet<>();
 
     /**
@@ -108,6 +123,7 @@ public class Contact {
     @ElementCollection
     @CollectionTable(name = "contact_work_mobile_phones", joinColumns = @JoinColumn(name = "contact_id"))
     @Column(name = "phone_number")
+    @BatchSize(size = BATCH_SIZE)
     private Set<String> workMobilePhones = new HashSet<>();
 
     /**
